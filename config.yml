@@ -1,0 +1,7 @@
+default:
+  per_room_time_threshold: .5 # .5 indicates staff must be in OR for > 50% of case duration
+  shared_work_experience_window_weeks: 8 # number of prior weeks of cases to include in familiarity metric
+  table_suffix: '_fifty_perc_rt' # adds to end of base DB table to store familiarity metrics
+  data_dir: 'data/OR_Team_Data'
+  cases_file: 'All OR Cases.csv'
+  providers_file: 'All OR Providers.csv'
