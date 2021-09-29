@@ -13,7 +13,7 @@ library(tidyverse)
 ###################
 ###########################################################################
 
-get_and_clean_cases <- function(data_dir, cases_file){
+get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
   min_sec_ts <- c("AN_START_DATETIME","IN_OR_DTTM","IntubationTime","AnesReady",
                   "Procedure_Start_DateTime", "Incision","Closure","Emergence",
                   "CaseFinish","ExtubationTime","OUT_OR_DTTM","AN_STOP_DATETIME",
@@ -24,16 +24,48 @@ get_and_clean_cases <- function(data_dir, cases_file){
     mutate(across(all_of(min_sec_ts), lubridate::mdy_hm)) %>%
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
     rename_with(tolower)
+  if (!is.na(cpt_file)) {
+    # reads in and cleans, and categorizes CPT codes
+    df_cpt <- readr::read_csv(here(config$data_dir,config$cpt_file)) %>%
+      rename_with(tolower) %>%
+      drop_na() %>%
+      filter(!grepl("\\D", cpt)) %>% # keeps only strings with all numbers
+      mutate(cpt = as.integer(cpt)) %>%
+      mutate(log_id = as.integer(log_id)) %>%
+      rowwise() %>%
+      mutate(cpt_grouping = CPT_grouper(cpt)) %>%
+      drop_na()
+    # joins CPT with rest of case information
+    df_cases <- dplyr::full_join(df_cases, df_cpt, by = 'log_id')
+  }
   return(df_cases)
 }
 
 get_and_clean_providers <- function(data_dir, providers_file) {
-  df_providers <- readr::read_csv(here('OR_Team_Data','All OR Providers.csv')) %>%
+  df_providers <- readr::read_csv(here(data_dir,providers_file)) %>%
     mutate_if(is.character, ~iconv(.,'UTF-8','UTF-8',sub = '')) %>% # gets rid of odd characters
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
     mutate(staff_id = as.integer(staff_id)) %>%
     mutate(TIME_DURATION_MINS = as.numeric(TIME_DURATION_MINS)) %>%
     rename_with(tolower)
+}
+
+CPT_grouper <- function(code) {
+  #groupings taken from ACS: https://doi.org/10.1016/j.jamcollsurg.2010.07.021
+  if (between(code,10000,29999)) {group_label <- 1}#'integumentary & musculoskeletal'}
+  else if (between(code,30000,32999)) {group_label <- 2}#''respiratory/hemic/lymphatic'}
+  else if (between(code,38000,39999)) {group_label <- 2}#''respiratory/hemic/lymphatic'}
+  else if (between(code,33001,34900)) {group_label <- 3}#''cardiovascular'}
+  else if (between(code,35001,37799)) {group_label <- 4}#''vascular'}
+  else if (between(code,40000,43499)) {group_label <- 5}#''upper digestive tract / abdominal'}
+  else if (between(code,43500,49429)) {group_label <- 6}#''other digestive tract / abdominal'}
+  else if (between(code,49650,49999)) {group_label <- 6}#''other digestive tract / abdominal'}
+  else if (between(code,49491,49611)) {group_label <- 7}#''hernia repair'}
+  else if (between(code,60000,60999)) {group_label <- 8}#''endocrine'}
+  else if (between(code,50000,59999)) {group_label <- 9}#''urinary'}
+  else if (between(code,61000,99999)) {group_label <- 10}#''nervous system'}
+  else {group_label <- NA}
+  return(group_label)
 }
 
 prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experience_window_weeks) {
@@ -67,6 +99,22 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   fam_df$log_id <- as.integer(fam_df$log_id)
   fam_df <- fam_df[complete.cases(fam_df),]
   return(fam_df)
+}
+
+push_cases_providers_to_db <- function(df_cases,df_providers) {
+  con <- DBI::dbConnect(RPostgres::Postgres(),
+                       dbname   = 'OR_DB',
+                       host     = 'localhost',
+                       port     = 5432,
+                       user     = 'postgres',
+                       password = 'LetMeIn21')
+  if (!is.na(df_cases)) {
+    dbWriteTable(con, "cases", df_cases, overwrite = TRUE)
+  }
+  if (!is.na(df_providers)) {
+    dbWriteTable(con,"providers",df_providers, overwrite = TRUE)
+  }
+  NULL
 }
 
 prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix, shared_work_experience_window_weeks) {
@@ -258,63 +306,3 @@ get_perf_fam_metrics <- function(df_cases, table_suffix){
 ###########################################################################
 
 #get_descriptive_plots()
-
-
-#########################################################################
-###############
-############## Functions run in borgattizer_par using in memory tibbles
-###################
-###########################################################################
-
-get_team_members <- function(case_ID) {
-  team_members <- df_providers %>%
-    filter(log_id == case_ID) %>%
-    distinct(staff_id) %>%
-    pull()
-  team_members
-}
-
-get_team_members_sfly <- purrr::possibly(.f = get_team_members, otherwise = NULL)
-
-get_perf_hx <- function(r, team_members) {
-  x <- df_providers %>%
-    filter((staff_id %in% team_members) & (surgery_date > (r$surgery_date - lubridate::years(1))) & (surgery_date < r$surgery_date)) %>%
-    select(staff_id,log_id) %>%
-    table() %>%
-    as.data.frame.matrix()
-  return(x)
-}
-
-get_perf_hx_sfly <- purrr::possibly(.f = get_perf_hx, otherwise = NULL)
-
-get_team_size <- purrr::possibly(.f = length, otherwise = NULL)
-
-get_zeta <- function(past_perf_hx_mx, prime) {
-  if (prime == FALSE) {
-    z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
-  } else {
-    prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
-    z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / ((past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()) - 1))
-  }
-  z
-}
-get_zeta_safely <- purrr::possibly(.f = get_zeta, otherwise = NULL)
-
-
-borgattizer_par <- function(df) {
-  foreach::foreach(r = iterators::iter(df, by = 'row'), .combine = rbind) %dopar% {
-    # get team member IDs
-    LOG_ID <- unique(r$log_id)
-    team_members <- get_team_members_sfly(LOG_ID)
-    # set team size
-    t_size <- get_team_size(team_members)
-    # pull past performance data
-    past_perf_hx_mx <- get_perf_hx_sfly(r = r, team_members = team_members)
-    data.frame(
-      log_id=LOG_ID,
-      team_size=t_size,
-      zeta=zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = FALSE),
-      zeta_prime=zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = TRUE)
-    )
-  }
-}

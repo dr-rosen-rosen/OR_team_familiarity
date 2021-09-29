@@ -22,11 +22,17 @@ source(here('1a_funcs.R'), echo = TRUE)
 
 df_cases <- get_and_clean_cases(
   data_dir = config$data_dir,
-  cases_file = config$cases_file)
+  cases_file = config$cases_file,
+  cpt_file = config$cpt_file)
 
 df_providers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file)
+
+push_cases_providers_to_db(
+  df_cases = df_cases,
+  df_providers = NA
+)
 
 fam_df <- prep_data_for_fam_metrics(
   df_cases = df_cases,
