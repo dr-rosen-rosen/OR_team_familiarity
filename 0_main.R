@@ -13,7 +13,7 @@ Sys.setenv(R_CONFIG_ACTIVE = 'default')
 config <- config::get()
 
 
-source(here('1a_funcs.R'), echo = TRUE)
+source(here('1_funcs.R'), echo = TRUE)
 # add get_peds_cases
 # calculate LOP, OR Rm time, LOS, on time start / end
 
@@ -29,10 +29,10 @@ df_providers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file)
 
-push_cases_providers_to_db(
-  df_cases = df_cases,
-  df_providers = NA
-)
+# push_cases_providers_to_db(
+#   df_cases = df_cases,
+#   df_providers = NA
+# )
 
 fam_df <- prep_data_for_fam_metrics(
   df_cases = df_cases,

@@ -197,6 +197,19 @@ get_perf_hx_db <- function(r, team_members, con) {
 
 get_perf_hx_db_sfly <- purrr::possibly(.f = get_perf_hx_db, otherwise = NULL)
 
+get_team_size <- purrr::possibly(.f = length, otherwise = NULL)
+
+get_zeta <- function(past_perf_hx_mx, prime) {
+  if (prime == FALSE) {
+    z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
+  } else {
+    prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
+    z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / ((past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()) - 1))
+  }
+  z
+}
+get_zeta_safely <- purrr::possibly(.f = get_zeta, otherwise = NULL)
+
 borgattizer_par_db <- function(df) {
   foreach::foreach(
     r = iterators::iter(df, by = 'row'),
