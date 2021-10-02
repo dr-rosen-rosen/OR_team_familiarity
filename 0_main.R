@@ -50,7 +50,12 @@ source('2_make_fam_metrics_db.R')
 
 ### Use if processing stops before all casees done
 fam_df <- get_unprocessed(
-  con = con,
+  con = DBI::dbConnect(RPostgres::Postgres(),
+                        dbname   = 'OR_DB',
+                        host     = 'localhost',
+                        port     = 5432,
+                        user     = 'postgres',
+                        password = 'LetMeIn21'),
   metrics = 'borgatti',
   df = fam_df,
   table_suffix = config$table_suffix,
