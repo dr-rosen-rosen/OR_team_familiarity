@@ -80,7 +80,7 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   print(landmark)
   df_cases_trim <- df_cases %>%
     filter(
-      (facility == 'THE JOHNS HOPKINS HOSPITAL') &
+      #(facility == 'THE JOHNS HOPKINS HOSPITAL') &
         #(adtpatientclass == 'Inpatient') &
         (surgery_date >= landmark)
       )
@@ -272,6 +272,20 @@ get_unprocessed <- function(con, metrics, df, table_suffix, shared_work_experien
   return(unprocessed)
 }
 
+
+run_audit <- function(con, tname){
+  t <- dplyr::tbl(con,tname)
+  df <- t %>%
+    dplyr::collect() 
+  locs <- dplyr::tbl(con,'cases') %>%
+    dplyr::select(log_id,facility) %>%
+    collect()
+  df <- df %>%
+    full_join(locs, by = 'log_id') %>%
+    group_by(facility) %>%
+    summarise_all(funs(sum(!is.na(.))))
+  return(df)
+}
 
 #########################################################################
 ###############

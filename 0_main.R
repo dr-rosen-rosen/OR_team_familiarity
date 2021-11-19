@@ -48,7 +48,7 @@ prep_DB_for_fam_metrics(
 
 source('2_make_fam_metrics_db.R')
 
-### Use if processing stops before all casees done
+### Use if processing stops before all cases done
 fam_df <- get_unprocessed(
   con = DBI::dbConnect(RPostgres::Postgres(),
                         dbname   = 'OR_DB',
@@ -65,3 +65,17 @@ fam_by_perf_df <- get_perf_fam_metrics(
   df_cases = df_cases,
   table_suffix = config$table_suffix
 )
+
+
+#################################
+
+x <- run_audit(
+  con = DBI::dbConnect(RPostgres::Postgres(),
+                       dbname   = 'OR_DB',
+                       host     = 'localhost',
+                       port     = 5432,
+                       user     = 'postgres',
+                       password = 'LetMeIn21'),
+  tname = 'team_comp_metrics_fifty_perc_rt' #'team_comp_metrics'#
+)
+
