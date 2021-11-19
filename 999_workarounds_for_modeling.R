@@ -16,7 +16,7 @@ library(dplyr)
 p <- df_cmb %>%
   filter(facility == 'THE JOHNS HOPKINS HOSPITAL') %>%
   #mutate()
-  ggplot(aes(y=zeta_52, x=surgery_date)) +
+  ggplot(aes(y=zeta_prime_1, x=surgery_date)) +
   geom_point() + 
   xlab("")
 p
