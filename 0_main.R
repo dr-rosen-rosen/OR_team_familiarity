@@ -78,4 +78,16 @@ x <- run_audit(
                        password = 'LetMeIn21'),
   tname = 'team_comp_metrics_fifty_perc_rt' #'team_comp_metrics'#
 )
+write_csv(x,'audit.csv')
 
+#### Dump contents of the cases and perf metrics so I can work on models while this runs on PC w/ PG DB
+tcon <- DBI::dbConnect(RPostgres::Postgres(),
+                     dbname   = 'OR_DB',
+                     host     = 'localhost',
+                     port     = 5432,
+                     user     = 'postgres',
+                     password = 'LetMeIn21')
+all_cases <- tcon %>% tbl('team_comp_metrics_fifty_perc_rt') %>% collect()
+all_cases %>% write_csv(.,'all_cases_w50per_rt.csv')
+all_cases <- tcon %>% tbl('cases') %>% collect()
+all_cases %>% write_csv(.,'cases.csv')

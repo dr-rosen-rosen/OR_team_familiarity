@@ -204,7 +204,7 @@ get_zeta <- function(past_perf_hx_mx, prime) {
     z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
   } else {
     prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
-    z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / ((past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()) - 1))
+    z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
   }
   z
 }
