@@ -27,15 +27,17 @@ df_cases <- get_and_clean_cases(
 
 df_providers <- get_and_clean_providers(
   data_dir = config$data_dir,
-  providers_file = config$providers_file)
+  providers_file = config$providers_file,
+  remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
+  )
 
-# push_cases_providers_to_db(
-#   df_cases = df_cases,
-#   df_providers = NA
-# )
+push_cases_providers_to_db(
+  df_cases = NA,
+  df_providers = df_providers
+)
 
 fam_df <- prep_data_for_fam_metrics(
-  df_cases = df_cases,
+  df_cases = df_cases, #%>% filter(log_id %in% unique(big_zetas$log_id)),
   df_providers = df_providers,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks)
 
@@ -76,7 +78,7 @@ x <- run_audit(
                        port     = 5432,
                        user     = 'postgres',
                        password = 'LetMeIn21'),
-  tname = 'team_comp_metrics_fifty_perc_rt' #'team_comp_metrics'#
+  tname = 'team_comp_metrics_v2_fifty_perc_rt' #'team_comp_metrics'#
 )
 write_csv(x,'audit.csv')
 
@@ -87,7 +89,10 @@ tcon <- DBI::dbConnect(RPostgres::Postgres(),
                      port     = 5432,
                      user     = 'postgres',
                      password = 'LetMeIn21')
-all_cases <- tcon %>% tbl('team_comp_metrics_fifty_perc_rt') %>% collect()
+all_cases <- tcon %>% tbl('team_comp_metrics_v2_fifty_perc_rt') %>% collect()
 all_cases %>% write_csv(.,'all_cases_w50per_rt.csv')
 all_cases <- tcon %>% tbl('cases') %>% collect()
 all_cases %>% write_csv(.,'cases.csv')
+
+big_zetas <- tcon %>% tbl('team_comp_metrics_v2_fifty_perc_rt') %>%
+  filter(zeta_prime_1 > 1) %>% collect()

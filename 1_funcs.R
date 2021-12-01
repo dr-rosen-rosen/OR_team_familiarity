@@ -41,13 +41,22 @@ get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
   return(df_cases)
 }
 
-get_and_clean_providers <- function(data_dir, providers_file) {
+get_and_clean_providers <- function(data_dir, providers_file, remove_dupes) {
   df_providers <- readr::read_csv(here(data_dir,providers_file)) %>%
     mutate_if(is.character, ~iconv(.,'UTF-8','UTF-8',sub = '')) %>% # gets rid of odd characters
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
     mutate(staff_id = as.integer(staff_id)) %>%
     mutate(TIME_DURATION_MINS = as.numeric(TIME_DURATION_MINS)) %>%
     rename_with(tolower)
+  if(remove_dupes == TRUE) {
+    df_providers <- df_providers %>%
+      group_by(log_id, staff_id, surgery_date) %>%
+      summarize(
+        time_duration_mins = sum(time_duration_mins),
+        staffrole = first(na.omit(staffrole))) %>%
+      ungroup()
+  }
+  return(df_providers)
 }
 
 CPT_grouper <- function(code) {
@@ -80,7 +89,7 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   print(landmark)
   df_cases_trim <- df_cases %>%
     filter(
-      #(facility == 'THE JOHNS HOPKINS HOSPITAL') &
+      (facility == 'THE JOHNS HOPKINS HOSPITAL') &
         #(adtpatientclass == 'Inpatient') &
         (surgery_date >= landmark)
       )
@@ -90,11 +99,11 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   fam_df <- data.frame(
     log_id = all_cases
   )
-  print(nrow(fam_df))
+  #print(nrow(fam_df))
   # need to have serial connection to db open first. Then close it, and go back to register DBs
   #df_cases_trim <- get_unprocessed(con = con, metrics = 'borgatti',df = df_cases_trim, table_suffix = table_suffix, shared_work_experience_window_weeks = shared_work_experience_window_weeks)
-  print(names(fam_df))
-  print(names(df_cases_trim))
+  #print(names(fam_df))
+  #print(names(df_cases_trim))
   fam_df <- base::merge(fam_df, df_cases_trim[c('log_id','surgery_date','room_time')], by = 'log_id')
   fam_df$log_id <- as.integer(fam_df$log_id)
   fam_df <- fam_df[complete.cases(fam_df),]
@@ -144,17 +153,18 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix, shared
       mutate(log_id = as.integer(log_id))
     DBI::dbWriteTable(con,paste0("team_comp_metrics",table_suffix),fam_metrics_df, overwrite = TRUE)
   } else { print('Table exists... ')}
-  tbls <- dbListTables(con)
-  tbl <- paste0('zeta_',shared_work_experience_window_weeks)
-  if (!(tbl %in% tbls) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
-    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",tbl," NUMERIC")
+  #tbls <- dbListTables(con)
+  c_names <- colnames(tbl(con,t_name))
+  c <- paste0('zeta_',shared_work_experience_window_weeks)
+  if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
+    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
     print(stmt)
     wrt <- dbSendQuery(con,stmt)
     dbClearResult(wrt)
   }
-  tbl <- paste0('zeta_prime_',shared_work_experience_window_weeks)
-  if (!(tbl %in% tbls) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
-    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",tbl," NUMERIC")
+  c <- paste0('zeta_prime_',shared_work_experience_window_weeks)
+  if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
+    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
     print(stmt)
     wrt <- dbSendQuery(con,stmt)
     dbClearResult(wrt)
@@ -168,7 +178,7 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix, shared
 ###########################################################################
 
 get_team_members_db <- function(case_ID,thresh) {
-  print(thresh)
+  #print(thresh)
   t <- dplyr::tbl(con,'providers')
   team_members <- t %>%
     filter(log_id == case_ID) %>%
@@ -189,7 +199,7 @@ get_perf_hx_db <- function(r, team_members, con) {
     filter(staff_id %in% team_members) %>%
     filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
     select(staff_id,log_id) %>%
-    dplyr::collect() %>%
+    dplyr::collect()%>%
     table() %>%
     as.data.frame.matrix()
   return(x)
@@ -200,13 +210,21 @@ get_perf_hx_db_sfly <- purrr::possibly(.f = get_perf_hx_db, otherwise = NULL)
 get_team_size <- purrr::possibly(.f = length, otherwise = NULL)
 
 get_zeta <- function(past_perf_hx_mx, prime) {
+  #print(paste('matrix',past_perf_hx_mx))
+  #print.matrix(past_perf_hx_mx)
+  zeta_num <- ncol(past_perf_hx_mx) # the columns represent all cases in which a team member worked
+  zeta_denom <- past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()
+  #print(paste('num:',zeta_num,'; denom:',zeta_denom))
   if (prime == FALSE) {
-    z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
+    #z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
+    z <- 1 - (zeta_num / zeta_denom)
   } else {
     prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
-    z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
+    #print(paste('prime offset',prime_offset))
+    #z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
+    z <- 1 - ((zeta_num - prime_offset) / (zeta_denom - prime_offset))
   }
-  z
+  return(z)
 }
 get_zeta_safely <- purrr::possibly(.f = get_zeta, otherwise = NULL)
 
@@ -222,9 +240,10 @@ borgattizer_par_db <- function(df) {
       )
     # set team size
     t_size <- get_team_size(team_members)
+    #print(paste('team size:',t_size))
     if (t_size >= 2) {
       # pull past performance data adn calculate metrics
-      print(paste("Getting past perf hx:",LOG_ID))
+      #print(paste("Getting past perf hx:",LOG_ID))
       past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
       if (!is.null(past_perf_hx_mx)) {
         zeta <- get_zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = FALSE)
@@ -276,7 +295,7 @@ get_unprocessed <- function(con, metrics, df, table_suffix, shared_work_experien
 run_audit <- function(con, tname){
   t <- dplyr::tbl(con,tname)
   df <- t %>%
-    dplyr::collect() 
+    dplyr::collect()
   locs <- dplyr::tbl(con,'cases') %>%
     dplyr::select(log_id,facility) %>%
     collect()

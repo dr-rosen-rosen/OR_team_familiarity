@@ -38,6 +38,10 @@ system.time({
 parallel::stopCluster(cl)
 
 
+#### do in series
+# borgattizer_par_db(
+#   df = fam_df
+# )
 
 ################## Single test cases
 # case <- 271624
