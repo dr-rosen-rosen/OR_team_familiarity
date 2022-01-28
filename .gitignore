@@ -6,6 +6,9 @@
 *.xlsx
 *.csv
 **/data/
+*.docx
+*.pdf
+*.html
 
 # History files
 .Rhistory
