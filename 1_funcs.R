@@ -89,7 +89,7 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   print(landmark)
   df_cases_trim <- df_cases %>%
     filter(
-      (facility == 'THE JOHNS HOPKINS HOSPITAL') &
+      # (facility == 'THE JOHNS HOPKINS HOSPITAL') &
         #(adtpatientclass == 'Inpatient') &
         (surgery_date >= landmark)
       )

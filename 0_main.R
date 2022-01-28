@@ -89,8 +89,8 @@ tcon <- DBI::dbConnect(RPostgres::Postgres(),
                      port     = 5432,
                      user     = 'postgres',
                      password = 'LetMeIn21')
-all_cases <- tcon %>% tbl('team_comp_metrics_v2_fifty_perc_rt') %>% collect()
-all_cases %>% write_csv(.,'all_cases_w50per_rt.csv')
+all_cases <- tcon %>% tbl('team_comp_metrics_v2_all_staff') %>% collect()
+all_cases %>% write_csv(.,'all_cases_all_staff.csv')
 all_cases <- tcon %>% tbl('cases') %>% collect()
 all_cases %>% write_csv(.,'cases.csv')
 
