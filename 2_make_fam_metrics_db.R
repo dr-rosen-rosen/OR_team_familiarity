@@ -6,13 +6,18 @@
 per_room_time_threshold <- config$per_room_time_threshold
 shared_work_experience_window_weeks <- config$shared_work_experience_window_weeks
 table_suffix <- config$table_suffix
+dyad_table_suffix <- config$dyad_table_suffix
+borg_table_suffix <- config$borg_table_suffix
 STTS <- config$STTS
 
-cl <- makeCluster(10, outfile="")
+cl <- makeCluster(8, outfile="")
 clusterExport(cl=cl, varlist = c(
   'get_team_members_db','get_team_members_db_sfly','get_perf_hx_db','get_perf_hx_db_sfly','get_team_size',
-  'get_zeta','get_zeta_safely', 'per_room_time_threshold', 'shared_work_experience_window_weeks', 
-  'STTS','table_suffix')
+  'get_zeta','get_zeta_safely',
+  'get_dyad_safely','get_dyad_based_fam',
+  'per_room_time_threshold', 'shared_work_experience_window_weeks',
+  'STTS','table_suffix',
+  'dyad_table_suffix', 'borg_table_suffix')
 )
 clusterEvalQ(cl, {
   library(magrittr)
@@ -32,8 +37,7 @@ clusterEvalQ(cl, {
 registerDoParallel(cl)
 getDoParWorkers()
 
-borgattizer_par_db(
+dyad_izer_par_db( #cmbd_dyad_borg_par_db(#dyad_izer_par_db( #borgattizer_par_db(
   df = fam_df
 )
 parallel::stopCluster(cl)
-

@@ -25,11 +25,11 @@ df_cases <- get_and_clean_cases(
   cases_file = config$cases_file,
   cpt_file = config$cpt_file)
 
-df_providers <- get_and_clean_providers(
+df_proviers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
-  )
+)
 
 push_cases_providers_to_db(
   df_cases = NA,
@@ -41,10 +41,13 @@ fam_df <- prep_data_for_fam_metrics(
   df_providers = df_providers,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks)
 
+# Need to run this twice if using the cmbd_dyad_borg_par_db function (once with each dyad and borg table suffix)
 prep_DB_for_fam_metrics(
   df_cases = df_cases,
   df_providers = df_providers,
-  table_suffix = config$table_suffix,
+  #table_suffix = config$table_suffix,
+  table_suffix = config$dyad_table_suffix,
+  # table_suffix = config$borg_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks
 )
 
@@ -58,10 +61,10 @@ fam_df <- get_unprocessed(
                         port     = 5432,
                         user     = 'postgres',
                         password = 'LetMeIn21'),
-  metrics = 'borgatti',
   df = fam_df,
   table_suffix = config$table_suffix,
-  shared_work_experience_window_weeks = config$shared_work_experience_window_weeks)
+  shared_work_experience_window_weeks = config$shared_work_experience_window_weeks
+  )
 
 fam_by_perf_df <- get_perf_fam_metrics(
   df_cases = df_cases,
@@ -96,3 +99,14 @@ all_cases %>% write_csv(.,'cases.csv')
 
 big_zetas <- tcon %>% tbl('team_comp_metrics_v2_fifty_perc_rt') %>%
   filter(zeta_prime_1 > 1) %>% collect()
+
+
+x <- pullAllTeamCompMetrics(
+  con = DBI::dbConnect(RPostgres::Postgres(),
+                       dbname   = 'OR_DB',
+                       host     = 'localhost',
+                       port     = 5432,
+                       user     = 'postgres',
+                       password = 'LetMeIn21')
+)
+
