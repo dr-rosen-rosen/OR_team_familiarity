@@ -5,7 +5,8 @@ library(tidyverse)
 library(ggplot2)
 library(sjPlot)
 library(sjmisc)
-fam_by_perf_df <- merge(fam_metrics, df_perf, by = 'log_id')
+fam_by_perf_df <- merge(fam_metrics, d
+                        f_perf, by = 'log_id')
 
 
 Peds_OR_Service <- map(unique(fam_by_perf_df$or_service), keep, str_detect, 'Ped')

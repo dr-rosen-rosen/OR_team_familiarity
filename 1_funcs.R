@@ -77,6 +77,22 @@ CPT_grouper <- function(code) {
   return(group_label)
 }
 
+label_cpt_groups <- function(df) {
+  df <- df %>%
+    mutate(cpt_grouping = recode_factor(cpt_grouping, 
+                                 "1" = "integumentary & musculoskeletal",
+                                 "2" = "respiratory/hemic/lymphatic",
+                                 "3" = "cardiovascular",
+                                 "4" = "vascular",
+                                 "5" = "upper digestive tract / abdominal",
+                                 "6" = "other digestive tract / abdominal",
+                                 "7" = "hernia repair",
+                                 "8" = "endocrine",
+                                 "9" = "urinary",
+                                 "10" = "nervous system"))
+  return(df)
+}
+
 prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experience_window_weeks) {
   ### Do any prep for data before calculating metrics here...
   # Creates list of all Peds Service listings
