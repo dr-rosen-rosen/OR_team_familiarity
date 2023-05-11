@@ -110,3 +110,14 @@ x <- pullAllTeamCompMetrics(
                        password = 'LetMeIn21')
 )
 
+skimr::skim(x)
+
+x %>% 
+  filter(stts == TRUE & coreTeam == TRUE) %>%
+  select(zeta_4) %>%
+  table()
+
+write_csv(x,here(config$data_dir,'combinedTeamCompMetrics.csv'))
+
+
+

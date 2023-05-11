@@ -523,24 +523,25 @@ pullAllTeamCompMetrics <- function(con) {
   # create empty df for storing data
   borgTables <- grep('borg',tableNames, fixed = TRUE, value = TRUE)
   dyadTables <- grep('dyad',tableNames,fixed = TRUE, value = TRUE)
+
   for (tname in borgTables) {
     print(tname)
     #pull all data
     t <- dplyr::tbl(con,tname)
     df <- t %>%
       dplyr::collect()
-    cols <- names(df)
-    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
-    df <- df %>% drop_na(all_of(cols))
+#    cols <- names(df)
+#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
+#    print(cols)
+    # df <- df %>% drop_na(all_of(cols))
 
-    #df$metricSet <- dplyr::if_else(grepl('dyad',tname,fixed = TRUE), 'dyad','borg') # check if borgatti or dyad
     df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
     df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
     if (!exists("borg_data")) {
-      borg_data <- df}
+      borg_data <- data.frame(df)}
     else {
       borg_data <- dplyr::full_join(borg_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
-      print(nrow(borg_data))}
+      }
   }
   for (tname in dyadTables) {
     print(tname)
@@ -548,18 +549,17 @@ pullAllTeamCompMetrics <- function(con) {
     t <- dplyr::tbl(con,tname)
     df <- t %>%
       dplyr::collect()
-    cols <- names(df)
-    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
-    df <- df %>% drop_na(all_of(cols))
-    
-    #df$metricSet <- dplyr::if_else(grepl('dyad',tname,fixed = TRUE), 'dyad','borg') # check if borgatti or dyad
+#    cols <- names(df)
+#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
+#    df <- df %>% drop_na(all_of(cols))
+
     df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
     df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
     if (!exists("dyad_data")) {
-      dyad_data <- df}
+      dyad_data <- data.frame(df)}
     else {
       dyad_data <- dplyr::full_join(dyad_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
-      print(nrow(dyad_data))}
+      }
   }
   all_data <- dplyr::full_join(dyad_data,borg_data, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
   return(all_data)
