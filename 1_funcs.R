@@ -95,17 +95,13 @@ label_cpt_groups <- function(df) {
 
 prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experience_window_weeks) {
   ### Do any prep for data before calculating metrics here...
-  # Creates list of all Peds Service listings
-  #Peds_OR_Service <- map(unique(df_cases$OR_Service), keep, str_detect, 'Ped')
-  #Peds_OR_Service <- Peds_OR_Service[lapply(Peds_OR_Service, length) > 0]
-  #Peds_OR_Service <- str_subset(Peds_OR_Service, 'OPH Pediatric Strabismus', negate = TRUE) # All of these patients appear to be quite old
 
   # trims off cases that should not be processed (within window for calculating shared work experience)
   landmark <- (lubridate::ymd(min(df_cases$surgery_date)) + lubridate::weeks(shared_work_experience_window_weeks))
   print(landmark)
   df_cases_trim <- df_cases %>%
     filter(
-      (facility == 'THE JOHNS HOPKINS HOSPITAL') &
+      # (facility == 'THE JOHNS HOPKINS HOSPITAL') &
         #(adtpatientclass == 'Inpatient') &
         (surgery_date >= landmark)
       )
@@ -120,7 +116,7 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   #df_cases_trim <- get_unprocessed(con = con, metrics = 'borgatti',df = df_cases_trim, table_suffix = table_suffix, shared_work_experience_window_weeks = shared_work_experience_window_weeks)
   #print(names(fam_df))
   #print(names(df_cases_trim))
-  fam_df <- base::merge(fam_df, df_cases_trim[c('log_id','surgery_date','room_time')], by = 'log_id')
+  fam_df <- base::merge(fam_df, df_cases_trim[c('log_id','surgery_date','room_time','cpt')], by = 'log_id')
   fam_df$log_id <- as.integer(fam_df$log_id)
   fam_df <- fam_df[complete.cases(fam_df),]
   return(fam_df)
@@ -152,39 +148,66 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix, shared
                        password = 'LetMeIn21')
   # Test if Table exists
   t_name <- paste0('team_comp_metrics',table_suffix)
-  if (!DBI::dbExistsTable(con,t_name)) {
-    # If no, create it
-    print('No table... do something!')
-    all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
-    fam_metrics_df <- data.frame( # adds basic columsn for a week, a month and a year.
-      log_id = all_cases,
-      team_size = rep(NaN,length(all_cases)),
-      zeta_52 = rep(NaN,length(all_cases)),
-      zeta_prime_52 = rep(NaN,length(all_cases)),
-      zeta_4 = rep(NaN,length(all_cases)),
-      zeta_prime_4 = rep(NaN,length(all_cases)),
-      zeta_1 = rep(NaN,length(all_cases)),
-      zeta_prime_1 = rep(NaN,length(all_cases))) %>%
-      base::merge(., df_cases[c('log_id','surgery_date')], by = 'log_id') %>%
-      mutate(log_id = as.integer(log_id))
-    DBI::dbWriteTable(con,paste0("team_comp_metrics",table_suffix),fam_metrics_df, overwrite = TRUE)
-  } else { print('Table exists... ')}
-  #tbls <- dbListTables(con)
-  c_names <- colnames(tbl(con,t_name))
-  c <- paste0('zeta_',shared_work_experience_window_weeks)
-  if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
-    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
-    print(stmt)
-    wrt <- dbSendQuery(con,stmt)
-    dbClearResult(wrt)
-  }
-  c <- paste0('zeta_prime_',shared_work_experience_window_weeks)
-  if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
-    stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
-    print(stmt)
-    wrt <- dbSendQuery(con,stmt)
-    dbClearResult(wrt)
-  }
+  if (!grepl('dyad',table_suffix)){ # sets up a borgatti version
+    if (!DBI::dbExistsTable(con,t_name)) {
+      # If no, create it
+      print('No BORGATTI table... do something!')
+      all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
+      fam_metrics_df <- data.frame( # adds basic columsn for a week, a month and a year.
+        log_id = all_cases,
+        team_size = rep(NaN,length(all_cases)),
+        zeta_52 = rep(NaN,length(all_cases)),
+        zeta_prime_52 = rep(NaN,length(all_cases)),
+        zeta_4 = rep(NaN,length(all_cases)),
+        zeta_prime_4 = rep(NaN,length(all_cases)),
+        zeta_1 = rep(NaN,length(all_cases)),
+        zeta_prime_1 = rep(NaN,length(all_cases))) %>%
+        base::merge(., df_cases[c('log_id','surgery_date')], by = 'log_id') %>%
+        mutate(log_id = as.integer(log_id))
+      DBI::dbWriteTable(con,paste0("team_comp_metrics",table_suffix),fam_metrics_df, overwrite = TRUE)
+    } else { print('Table exists... ')}
+    #tbls <- dbListTables(con)
+    c_names <- colnames(tbl(con,t_name))
+    c <- paste0('zeta_',shared_work_experience_window_weeks)
+    if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
+      stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
+      print(stmt)
+      wrt <- dbSendQuery(con,stmt)
+      dbClearResult(wrt)
+    }
+    c <- paste0('zeta_prime_',shared_work_experience_window_weeks)
+    if (!(c %in% c_names) ) { #Test if columns exists for zeta / zeta_prime with shared_work_experience_window_weeks
+      stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",c," NUMERIC")
+      print(stmt)
+      wrt <- dbSendQuery(con,stmt)
+      dbClearResult(wrt)
+    }
+  } else { # sets up a dyad table
+    if (!DBI::dbExistsTable(con,t_name)) {
+      # If no, create it
+      print('No DYAD table... do something!')
+      all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
+      fam_metrics_df <- data.frame( # adds basic columns
+        log_id = all_cases,
+        team_size = rep(NaN,length(all_cases)),
+        avg_dyad_exp_52 = rep(NaN,length(all_cases)),
+        bottleneck_score_52 = rep(NaN,length(all_cases)),
+        team_fam_disp_52 = rep(NaN,length(all_cases))) %>%
+        base::merge(., df_cases[c('log_id','surgery_date')], by = 'log_id') %>%
+        mutate(log_id = as.integer(log_id))
+      DBI::dbWriteTable(con,paste0("team_comp_metrics",table_suffix),fam_metrics_df, overwrite = TRUE)
+    } else { print('Table exists... ')}
+    c_names <- colnames(tbl(con,t_name))
+    v_names <- paste0(c('avg_dyad_exp_','bottleneck_score_','team_fam_disp_'),shared_work_experience_window_weeks)
+    for (v in v_names) {
+      if (!(v %in% c_names) ) { #Test if columns exists
+        stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",v," NUMERIC")
+        print(stmt)
+        wrt <- dbSendQuery(con,stmt)
+        dbClearResult(wrt)
+      }
+    }
+  } # End dyad table set up
   NULL
 }
 #########################################################################
@@ -194,13 +217,17 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix, shared
 ###########################################################################
 
 get_team_members_db <- function(case_ID,thresh) {
-  #print(thresh)
+
   t <- dplyr::tbl(con,'providers')
   team_members <- t %>%
     filter(log_id == case_ID) %>%
     dplyr::collect()
-  team_members <- team_members %>%
+  # If there is a cutoff, it will adjust here, otherwise use all team members
+  if (!is.na(thresh)) {
+    team_members <- team_members %>%
     filter((time_duration_mins > thresh) | (!is.na(staffrole))) # Need to document the staffrole condition
+    }
+  # this should always be unique from the providers db; but just in case
   team_members <- unique(team_members$staff_id)
   return(team_members)
 }
@@ -215,9 +242,25 @@ get_perf_hx_db <- function(r, team_members, con) {
     filter(staff_id %in% team_members) %>%
     filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
     select(staff_id,log_id) %>%
-    dplyr::collect()%>%
+    dplyr::collect() %>%
     table() %>%
     as.data.frame.matrix()
+  if (STTS == TRUE){ # Trims the dataset to only include cases witth the same cpt code
+
+    # filter to only those with the same cpt code as current procedure
+    CPT <- unique(r$cpt)
+    all_cases <- unique(as.integer(colnames(x)))
+    t <- dplyr::tbl(con,'cases')
+    same_cpt_cases <- t %>%
+      filter(log_id %in% all_cases) %>%
+      filter(cpt == CPT) %>%
+      select(log_id) %>%
+      dplyr::collect()
+    # drop all columns (cases) from perf history that are not same procedure type
+    same_cpt_cases <- unique(as.character(same_cpt_cases$log_id))
+    x <- x %>%
+      select(same_cpt_cases)
+  }
   return(x)
 }
 
@@ -226,18 +269,12 @@ get_perf_hx_db_sfly <- purrr::possibly(.f = get_perf_hx_db, otherwise = NULL)
 get_team_size <- purrr::possibly(.f = length, otherwise = NULL)
 
 get_zeta <- function(past_perf_hx_mx, prime) {
-  #print(paste('matrix',past_perf_hx_mx))
-  #print.matrix(past_perf_hx_mx)
   zeta_num <- ncol(past_perf_hx_mx) # the columns represent all cases in which a team member worked
   zeta_denom <- past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()
-  #print(paste('num:',zeta_num,'; denom:',zeta_denom))
   if (prime == FALSE) {
-    #z = 1 - (ncol(past_perf_hx_mx) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
     z <- 1 - (zeta_num / zeta_denom)
   } else {
     prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
-    #print(paste('prime offset',prime_offset))
-    #z = 1 - ((ncol(past_perf_hx_mx) - prime_offset) / (past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()))
     z <- 1 - ((zeta_num - prime_offset) / (zeta_denom - prime_offset))
   }
   return(z)
@@ -256,19 +293,18 @@ borgattizer_par_db <- function(df) {
       )
     # set team size
     t_size <- get_team_size(team_members)
-    #print(paste('team size:',t_size))
+
     if (t_size >= 2) {
       # pull past performance data adn calculate metrics
-      #print(paste("Getting past perf hx:",LOG_ID))
       past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
       if (!is.null(past_perf_hx_mx)) {
         zeta <- get_zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = FALSE)
         zeta_prime <- get_zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = TRUE)
 
         # if nothing bad happened, save the results to db
-        if (t_size && zeta && zeta_prime && LOG_ID) {
+        if (!is.null(t_size) && !is.null(zeta) && !is.null(zeta_prime) && !is.null(LOG_ID)) {
           write_stmt <- paste(
-                          paste0("UPDATE team_comp_metrics",table_suffix),
+                          paste0("UPDATE team_comp_metrics",borg_table_suffix),
                           "SET team_size =",paste0(t_size,','),
                           paste0("zeta_",shared_work_experience_window_weeks," = ",zeta,','),
                           paste0("zeta_prime_",shared_work_experience_window_weeks," = ",zeta_prime),
@@ -281,6 +317,144 @@ borgattizer_par_db <- function(df) {
     NULL
   }
 }
+#########################################################################
+###############
+############## Functions run in dyad based measures using DB
+###################
+###########################################################################
+get_dyad_based_fam <- function(past_perf_hx_mx){
+  get_dyad_shared_w_exp <- function(dyad){
+    dyad_case_count <- past_perf_hx_mx[dyad,] %>%
+    select_if(colSums(.) == 2) %>%
+    ncol(.)
+    return(dyad_case_count)
+  }
+  t_size <- nrow(past_perf_hx_mx)
+  dyad_shared_work_exp <- utils::combn(seq(1:nrow(past_perf_hx_mx)), 2, get_dyad_shared_w_exp)
+  avg_dyad_exp <- mean(dyad_shared_work_exp) # used in Luciano, Parker & others
+  avg_team_fam <- sum(dyad_shared_work_exp) / ((t_size*(t_size-1)) / 2) # version from Avgerinos
+  print(min(dyad_shared_work_exp))
+  print(avg_dyad_exp)
+  bottleneck_score <- min(dyad_shared_work_exp) / avg_dyad_exp
+  print(bottleneck_score)
+  team_fam_disp <- sd(dyad_shared_work_exp)
+  return(
+    list(
+      avg_dyad_exp = avg_dyad_exp,
+      avg_team_fam = avg_team_fam,
+      bottleneck_score = bottleneck_score,
+      team_fam_disp = team_fam_disp
+    )
+  )
+}
+
+get_dyad_safely <- purrr::possibly(.f = get_dyad_based_fam, otherwise = NULL)
+
+dyad_izer_par_db <- function(df){
+  foreach::foreach(
+    r = iterators::iter(df, by = 'row'),
+    .combine = rbind, .noexport = 'con') %dopar% {
+    # get team member IDs
+    LOG_ID <- unique(r$log_id)
+    team_members <- get_team_members_db_sfly(
+      case_ID = LOG_ID,
+      thresh = per_room_time_threshold * r$room_time
+      )
+    # set team size
+    t_size <- get_team_size(team_members)
+    if (t_size >= 2) {
+      # pull past performance data adn calculate metrics
+      past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
+      if (!is.null(past_perf_hx_mx)) {
+        dyad_metrics <- get_dyad_safely(past_perf_hx_mx = past_perf_hx_mx)
+        print(dyad_metrics)
+        # if nothing bad happened, save the results to db
+        if (!is.null(t_size) && !is.na(dyad_metrics$avg_dyad_exp) && !is.na(dyad_metrics$avg_team_fam) && !is.null(LOG_ID)) {
+          write_stmt <- paste(
+                          paste0("UPDATE team_comp_metrics",dyad_table_suffix),
+                          "SET team_size =",paste0(t_size,','),
+                          paste0("avg_dyad_exp_",shared_work_experience_window_weeks," = ",dyad_metrics$avg_dyad_exp)
+                        )
+          ## adds in the bottleneck and dispersion score if there were more than 2 people on the 'team'
+          if ((t_size > 2) && !is.na(dyad_metrics$bottleneck_score) && !is.na(dyad_metrics$team_fam_disp)) {
+            write_stmt <- paste0(write_stmt,', ',
+                              paste0("bottleneck_score_",shared_work_experience_window_weeks," = ",dyad_metrics$bottleneck_score,','),
+                              paste0(" team_fam_disp_",shared_work_experience_window_weeks," = ",dyad_metrics$team_fam_disp))
+          }
+          write_stmt <- paste(write_stmt, "WHERE LOG_ID =",paste0(LOG_ID,';'))
+          wrt <- dbSendQuery(con,write_stmt)
+          dbClearResult(wrt)
+        } else  {print(paste('Failed write:',LOG_ID))}
+      } else {print(paste("Failed past perf hx:",LOG_ID))}
+    } else {print(paste("Failed - fewer than 2 team members:",LOG_ID))}
+    NULL
+  }
+}
+
+#########################################################################
+###############
+############## Functions run in dyad and zeta measures at the same time using DB
+###################
+
+
+cmbd_dyad_borg_par_db <- function(df){
+  foreach::foreach(
+    r = iterators::iter(df, by = 'row'),
+    .combine = rbind, .noexport = 'con') %dopar% {
+    # get team member IDs
+    LOG_ID <- unique(r$log_id)
+    team_members <- get_team_members_db_sfly(
+      case_ID = LOG_ID,
+      thresh = per_room_time_threshold * r$room_time
+      )
+    # set team size
+    t_size <- get_team_size(team_members)
+    if (t_size >= 2) {
+      # pull past performance data adn calculate metrics
+      past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
+      if (!is.null(past_perf_hx_mx)) {
+        # get zeta metrics
+        zeta <- get_zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = FALSE)
+        zeta_prime <- get_zeta_safely(past_perf_hx_mx = past_perf_hx_mx, prime = TRUE)
+        # get dyad-based metrics
+        dyad_metrics <- get_dyad_safely(past_perf_hx_mx = past_perf_hx_mx)
+
+        # if nothing bad happened, save the dyad results to db
+        if (!is.null(t_size) && !is.na(dyad_metrics$avg_dyad_exp) && !is.na(dyad_metrics$avg_team_fam) && !is.null(LOG_ID)) {
+          write_stmt <- paste(
+                          paste0("UPDATE team_comp_metrics",dyad_table_suffix),
+                          "SET team_size =",paste0(t_size,','),
+                          paste0("avg_dyad_exp_",shared_work_experience_window_weeks," = ",dyad_metrics$avg_dyad_exp)
+                        )
+          ## adds in the bottleneck and dispersion score if there were more than 2 people on the 'team'
+          if ((t_size > 2) && !is.na(dyad_metrics$bottleneck_score) && !is.na(dyad_metrics$team_fam_disp)) {
+            write_stmt <- paste0(write_stmt,', ',
+                              paste0("bottleneck_score_",shared_work_experience_window_weeks," = ",dyad_metrics$bottleneck_score,','),
+                              paste0(" team_fam_disp_",shared_work_experience_window_weeks," = ",dyad_metrics$team_fam_disp))
+          }
+          write_stmt <- paste(write_stmt, "WHERE LOG_ID =",paste0(LOG_ID,';'))
+          wrt <- dbSendQuery(con,write_stmt)
+          dbClearResult(wrt)
+        } else  {print(paste('Failed write dyad measures:',LOG_ID))}
+        # if nothing bad happened, save the zeta results to db
+        if (!is.null(t_size) && !is.null(zeta) && !is.null(zeta_prime) && !is.null(LOG_ID)) {
+          write_stmt <- paste(
+                          paste0("UPDATE team_comp_metrics",borg_table_suffix),
+                          "SET team_size =",paste0(t_size,','),
+                          paste0("zeta_",shared_work_experience_window_weeks," = ",zeta,','),
+                          paste0("zeta_prime_",shared_work_experience_window_weeks," = ",zeta_prime),
+                          "WHERE LOG_ID =",paste0(LOG_ID,';'))
+          wrt <- dbSendQuery(con,write_stmt)
+          dbClearResult(wrt)
+        } else  {print(paste('Failed write borgatti measures:',LOG_ID))}
+      } else {print(paste("Failed past perf hx:",LOG_ID))}
+    } else {print(paste("Failed - fewer than 2 team members:",LOG_ID))}
+    NULL
+  }
+}
+
+
+
 
 #########################################################################
 ###############
@@ -288,22 +462,20 @@ borgattizer_par_db <- function(df) {
 ###################
 ###########################################################################
 
-get_unprocessed <- function(con, metrics, df, table_suffix, shared_work_experience_window_weeks) {
+get_unprocessed <- function(con, df, table_suffix, shared_work_experience_window_weeks) {
   t <- dplyr::tbl(con,paste0('team_comp_metrics',table_suffix))
-  if (metrics == 'borgatti'){
-    # this querries the DB and returns a new df with only rows w/o data in db
-    # made for when the metric generation process dies before finishing and needs
-    # to be restarted with just the unfinished cases
-    processed <- t %>%
-      filter_at(vars(ends_with(as.character(shared_work_experience_window_weeks))), all_vars(!is.na(.))) %>%
-      select(log_id) %>%
-      dplyr::collect() %>%
-      as.list() %>%
-      unlist() %>%
-      as.numeric()
-    unprocessed <- df %>%
-    filter(!(log_id %in% processed))
-  } else {unprocessed = NULL}
+  # this querries the DB and returns a new df with only rows w/o data in db
+  # made for when the metric generation process dies before finishing and needs
+  # to be restarted with just the unfinished cases
+  processed <- t %>%
+    filter_at(vars(ends_with(as.character(shared_work_experience_window_weeks))), all_vars(!is.na(.))) %>%
+    select(log_id) %>%
+    dplyr::collect() %>%
+    as.list() %>%
+    unlist() %>%
+    as.numeric()
+  unprocessed <- df %>%
+  filter(!(log_id %in% processed))
   return(unprocessed)
 }
 
@@ -359,6 +531,55 @@ get_perf_fam_metrics <- function(df_cases, table_suffix){
   reutrn(fam_by_perf_df)
 }
 
+pullAllTeamCompMetrics <- function(con) {
+  # get all table names
+  tableNames <- DBI::dbListTables(con)
+  # only keep names with 'team_comp_metrics
+  tableNames <- grep('team_comp_metrics',tableNames, value = TRUE)
+  # create empty df for storing data
+  borgTables <- grep('borg',tableNames, fixed = TRUE, value = TRUE)
+  dyadTables <- grep('dyad',tableNames,fixed = TRUE, value = TRUE)
+
+  for (tname in borgTables) {
+    print(tname)
+    #pull all data
+    t <- dplyr::tbl(con,tname)
+    df <- t %>%
+      dplyr::collect()
+#    cols <- names(df)
+#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
+#    print(cols)
+    # df <- df %>% drop_na(all_of(cols))
+
+    df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
+    df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
+    if (!exists("borg_data")) {
+      borg_data <- data.frame(df)}
+    else {
+      borg_data <- dplyr::full_join(borg_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
+      }
+  }
+  for (tname in dyadTables) {
+    print(tname)
+    #pull all data
+    t <- dplyr::tbl(con,tname)
+    df <- t %>%
+      dplyr::collect()
+#    cols <- names(df)
+#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
+#    df <- df %>% drop_na(all_of(cols))
+
+    df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
+    df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
+    if (!exists("dyad_data")) {
+      dyad_data <- data.frame(df)}
+    else {
+      dyad_data <- dplyr::full_join(dyad_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
+      }
+  }
+  all_data <- dplyr::full_join(dyad_data,borg_data, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
+  return(all_data)
+}
 #prep_data_for_analysis(con,)
 
 #########################################################################
