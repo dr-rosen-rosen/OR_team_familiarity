@@ -5,7 +5,6 @@
 
 per_room_time_threshold <- config$per_room_time_threshold
 shared_work_experience_window_weeks <- config$shared_work_experience_window_weeks
-table_suffix <- config$table_suffix
 dyad_table_suffix <- config$dyad_table_suffix
 borg_table_suffix <- config$borg_table_suffix
 STTS <- config$STTS
@@ -25,13 +24,12 @@ clusterEvalQ(cl, {
   library(RSQLite)
   library(dbplyr)
   library(DBI)
-  #con <- DBI::dbConnect(RSQLite::SQLite(), 'OR_data.db')
   con <- DBI::dbConnect(RPostgres::Postgres(),
-                        dbname   = 'OR_DB',
+                        dbname   = config$db_name,
                         host     = 'localhost',
-                        port     = 5432,
-                        user     = 'postgres',
-                        password = 'LetMeIn21')
+                        port     = config$port,
+                        user     = config$db_user,
+                        password = config$db_pw)
   NULL
 })
 registerDoParallel(cl)

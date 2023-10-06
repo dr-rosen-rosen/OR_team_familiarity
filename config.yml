@@ -1,11 +1,21 @@
 default:
-  STTS: FALSE
-  per_room_time_threshold: .5 #!expr NA # .5 indicates staff must be in OR for > 50% of case duration
-  shared_work_experience_window_weeks: 4 # number of prior weeks of cases to include in familiarity metric
-  table_suffix: '_dyad_stts_fifty_perc_rt' # adds to end of base DB table to store familiarity metrics
-  borg_table_suffix: '_borg_stts_allstaff'
-  dyad_table_suffix: '_dyad_fifty_perc_rt'
+  # local settings
+  db_name: 'OR_DB'
+  port: 5432
+  db_user: 'postgres'
+  dp_pw: 'LetMeIn21'
   data_dir: 'data/OR_Team_Data'
   cases_file: 'All OR Cases.csv'
   providers_file: 'All OR Providers.csv'
   cpt_file: 'All OR Cases CPT Codes.csv'
+  
+  # Analysis run settings
+  STTS: FALSE # if TRUE, bases familiarity on times worked the SAME cpt code
+  per_room_time_threshold: .5 #!expr NA # .5 indicates staff must be in OR for > 50% of case duration
+  shared_work_experience_window_weeks: 4 # number of prior weeks of cases to include in familiarity metric
+  # adds to end of base DB table to store familiarity metrics
+  # structure is _[measure type: borg/dyad]_[stts if Y, leave out if N]_[allstaff/fifty_perc_rt]
+  borg_table_suffix: '_borg_fifty_perc_rt'
+  dyad_table_suffix: '_dyad_fifty_perc_rt'
+
+
