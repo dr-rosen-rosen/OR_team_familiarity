@@ -9,7 +9,7 @@ dyad_table_suffix <- config$dyad_table_suffix
 borg_table_suffix <- config$borg_table_suffix
 STTS <- config$STTS
 
-cl <- makeCluster(8, outfile="")
+cl <- makeCluster(6, outfile="")
 clusterExport(cl=cl, varlist = c(
   'get_team_members_db','get_team_members_db_sfly','get_perf_hx_db','get_perf_hx_db_sfly','get_team_size',
   'get_zeta','get_zeta_safely',

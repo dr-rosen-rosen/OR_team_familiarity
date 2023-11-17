@@ -25,11 +25,29 @@ df_cases <- get_and_clean_cases(
   cases_file = config$cases_file,
   cpt_file = config$cpt_file)
 
+df_cases_updated <- get_and_clean_cases(
+  data_dir = config$data_dir,
+  cases_file = config$cases_file_update,
+  cpt_file = NA)
+
+df_cases2 <- df_cases %>% 
+  bind_rows(df_cases_updated)
+
 df_proviers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
 )
+
+df_proviers_updated <- get_and_clean_providers(
+  data_dir = config$data_dir,
+  providers_file = config$providers_file_update,
+  remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
+)
+beepr::beep()
+
+df_providers2 <- df_providers %>% 
+  bind_rows(df_proviers_updated)
 
 # loads data to the postgress DB
 push_cases_providers_to_db(
@@ -39,8 +57,8 @@ push_cases_providers_to_db(
                               port     = config$port,
                               user     = config$db_user,
                               password = config$db_pw),
-  df_cases = NA,
-  df_providers = df_providers
+  df_cases = df_cases2,
+  df_providers = df_providers2
 )
 
 #########################
@@ -48,15 +66,15 @@ push_cases_providers_to_db(
 #########################
 
 fam_df <- prep_data_for_fam_metrics(
-  df_cases = df_cases, #%>% filter(log_id %in% unique(big_zetas$log_id)),
-  df_providers = df_providers,
+  df_cases = df_cases2, #%>% filter(log_id %in% unique(big_zetas$log_id)),
+  df_providers = df_providers2,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks)
 
 # Need to run this twice if using the cmbd_dyad_borg_par_db function (once with each dyad and borg table suffix)
 prep_DB_for_fam_metrics(
-  df_cases = df_cases,
-  df_providers = df_providers,
-  table_suffix = config$dyad_table_suffix,
+  df_cases = df_cases2,
+  df_providers = df_providers2,
+  table_suffix = config$borg_table_suffix,
   # table_suffix = config$borg_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),

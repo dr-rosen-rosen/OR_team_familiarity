@@ -1,13 +1,15 @@
 default:
   # local settings
-  db_name: 'OR_DB'
+  db_name: 'OR_DB_updated'
   port: 5432
   db_user: 'postgres'
-  dp_pw: 'LetMeIn21'
+  db_pw: 'LetMeIn21'
   data_dir: 'data/OR_Team_Data'
-  cases_file: 'All OR Cases.csv'
+  cases_file: 'All OR Cases.xlsx'
+  cases_file_update: 'All OR Cases as of 2023_1115.xlsx'
   providers_file: 'All OR Providers.csv'
-  cpt_file: 'All OR Cases CPT Codes.csv'
+  providers_file_update: 'All OR Providers as of 2023_1115.csv'
+  cpt_file: 'All OR Cases CPT Codes.xlsx'
   
   # Analysis run settings
   STTS: FALSE # if TRUE, bases familiarity on times worked the SAME cpt code

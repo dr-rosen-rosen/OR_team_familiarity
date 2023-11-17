@@ -14,23 +14,32 @@ library(glue)
 ###################
 ###########################################################################
 
+  
 # reading, cleaning, and preparing data files
 get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
   # Reads in, formats and cleans surgical case data file, including:
   # formating date times, log id's
-  min_sec_ts <- c("AN_START_DATETIME","IN_OR_DTTM","IntubationTime","AnesReady",
+  min_sec_ts <- c("AN_START_DATETIME",
+                  #"IN_OR_DTTM",
+                  "IntubationTime","AnesReady",
                   "Procedure_Start_DateTime", "Incision","Closure","Emergence",
                   "CaseFinish","ExtubationTime","OUT_OR_DTTM","AN_STOP_DATETIME",
-                  "SCHED_CASE_START_DTTM","ACTUAL_CASE_START_DTTM")
-  df_cases <- readr::read_csv(here(data_dir, cases_file)) %>%
+                  "SCHED_CASE_START_DTTM"
+                  #,"ACTUAL_CASE_START_DTTM"
+  )
+  df_cases <- readxl::read_excel(here::here(data_dir,cases_file)) %>%
+  #df_cases <- readr::read_csv(here(data_dir, cases_file)) %>%
     mutate_if(is.character, ~iconv(.,'UTF-8','UTF-8',sub = '')) %>% # gets rid of odd characters
-    mutate(across(c("AdmDate","DisDate","SURGERY_DATE"), lubridate::mdy)) %>%
-    mutate(across(all_of(min_sec_ts), lubridate::mdy_hm)) %>%
+    #mutate(across(c("AdmDate","DisDate","SURGERY_DATE"), lubridate::mdy)) %>%
+    #mutate(across(all_of(min_sec_ts), lubridate::mdy_hm)) %>%
+    mutate(across(all_of(min_sec_ts), ~ openxlsx::convertToDateTime(.,origin = "1900-01-01"))) %>%
+    mutate(across(c("AdmDate","DisDate"), ~ openxlsx::convertToDate(.,origin = "1900-01-01"))) %>%
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
     rename_with(tolower)
   if (!is.na(cpt_file)) {
     # reads in and cleans, and categorizes CPT codes if CPT file provided
-    df_cpt <- readr::read_csv(here(config$data_dir,config$cpt_file)) %>%
+    df_cpt <- readxl::read_excel(here::here(data_dir,cpt_file)) %>%
+    #df_cpt <- readr::read_csv(here(config$data_dir,config$cpt_file)) %>%
       rename_with(tolower) %>%
       drop_na() %>%
       filter(!grepl("\\D", cpt)) %>% # keeps only strings with all numbers
@@ -38,9 +47,23 @@ get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
       mutate(log_id = as.integer(log_id)) %>%
       rowwise() %>%
       mutate(cpt_grouping = CPT_grouper(cpt)) %>%
+      ungroup() %>%
       drop_na()
     # joins CPT with rest of case information
     df_cases <- dplyr::full_join(df_cases, df_cpt, by = 'log_id')
+  } else { # handles updated file with cpt in the original data
+    df_cases <- df_cases %>%
+      rename(cpt = cpt_default) %>%
+      filter(!grepl("\\D",cpt)) %>%
+      mutate(
+        cpt = as.integer(cpt),
+        log_id = as.integer(log_id),
+        hsp_account_id = as.integer(hsp_account_id)
+      ) %>%
+      rowwise() %>%
+      mutate(
+        cpt_grouping = CPT_grouper(cpt)
+      ) %>% ungroup()
   }
   return(df_cases)
 }
@@ -86,7 +109,7 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   ### Do any prep for data before calculating metrics here...
 
   # trims off cases that should not be processed (within window for calculating shared work experience)
-  landmark <- (lubridate::ymd(min(df_cases$surgery_date)) + lubridate::weeks(shared_work_experience_window_weeks))
+  landmark <- (lubridate::ymd(min(df_cases$surgery_date, na.rm = TRUE)) + lubridate::weeks(shared_work_experience_window_weeks))
   print(landmark)
   df_cases_trim <- df_cases %>%
     filter(
@@ -107,10 +130,10 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
 
 # managing database
 push_cases_providers_to_db <- function(con, df_cases,df_providers) {
-  if (!is.na(df_cases)) {
+  if (!is.null(df_cases)) {
     dbWriteTable(con, "cases", df_cases, overwrite = TRUE)
   }
-  if (!is.na(df_providers)) {
+  if (!is.null(df_providers)) {
     dbWriteTable(con,"providers",df_providers, overwrite = TRUE)
   }
   NULL
