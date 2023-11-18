@@ -35,7 +35,8 @@ get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
     mutate(across(all_of(min_sec_ts), ~ openxlsx::convertToDateTime(.,origin = "1900-01-01"))) %>%
     mutate(across(c("AdmDate","DisDate"), ~ openxlsx::convertToDate(.,origin = "1900-01-01"))) %>%
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
-    rename_with(tolower)
+    rename_with(tolower) %>%
+    mutate(surgery_date = as.Date(surgery_date))
   if (!is.na(cpt_file)) {
     # reads in and cleans, and categorizes CPT codes if CPT file provided
     df_cpt <- readxl::read_excel(here::here(data_dir,cpt_file)) %>%
@@ -231,8 +232,8 @@ get_team_members_db <- function(case_ID,thresh) {
     filter((time_duration_mins > thresh) | (staffrole == 'Primary')) # Need to document the staffrole condition
     }
   # this should always be unique from the providers db; but just in case
-  team_members <- unique(team_members$staff_id)
   x <- length(unique(team_members$staff_id))
+  team_members <- unique(team_members$staff_id)
   print(glue::glue("Team size after adjustment: {x}"))
   return(team_members)
 }
@@ -242,7 +243,9 @@ get_team_members_db_sfly <- purrr::possibly(.f = get_team_members_db, otherwise 
 get_perf_hx_db <- function(r, team_members, con) {
   t <- dplyr::tbl(con,'providers')
   s_date <- as.Date(r$surgery_date)
+  print(s_date)
   yr_window_lft <- s_date - lubridate::weeks(shared_work_experience_window_weeks)
+  print(yr_window_lft)
   x <- t %>%
     filter(staff_id %in% team_members) %>%
     filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
@@ -250,7 +253,8 @@ get_perf_hx_db <- function(r, team_members, con) {
     dplyr::collect() %>%
     table() %>%
     as.data.frame.matrix()
-  if (STTS == TRUE){ # Trims the dataset to only include cases witth the same cpt code
+  print(nrow(x))
+  if (STTS == TRUE){ # Trims the dataset to only include cases with the same cpt code
 
     # filter to only those with the same cpt code as current procedure
     CPT <- unique(r$cpt)
@@ -431,7 +435,6 @@ dyad_izer_par_db <- function(df){
 ############## Functions run in dyad and zeta measures at the same time using DB
 ###################
 
-
 cmbd_dyad_borg_par_db <- function(df){
   foreach::foreach(
     r = iterators::iter(df, by = 'row'),
@@ -442,8 +445,10 @@ cmbd_dyad_borg_par_db <- function(df){
       case_ID = LOG_ID,
       thresh = per_room_time_threshold * r$room_time
       )
+    print(team_members)
     # set team size
     t_size <- get_team_size(team_members)
+    print(t_size)
     if (t_size >= 2) {
       # pull past performance data adn calculate metrics
       past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
@@ -488,7 +493,6 @@ cmbd_dyad_borg_par_db <- function(df){
   }
 }
 
-
 #########################################################################
 ###############
 ############## Potpouri helpers
@@ -511,7 +515,6 @@ get_unprocessed <- function(con, df, table_suffix, shared_work_experience_window
   filter(!(log_id %in% processed))
   return(unprocessed)
 }
-
 
 run_audit <- function(con, tname){
   t <- dplyr::tbl(con,tname)

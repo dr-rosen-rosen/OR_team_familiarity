@@ -31,7 +31,10 @@ df_cases_updated <- get_and_clean_cases(
   cpt_file = NA)
 
 df_cases2 <- df_cases %>% 
-  bind_rows(df_cases_updated)
+  bind_rows(df_cases_updated) %>%
+  mutate(
+    surgery_date = as.Date(surgery_date)
+  )
 
 df_proviers <- get_and_clean_providers(
   data_dir = config$data_dir,
@@ -93,6 +96,7 @@ source('2_make_fam_metrics_db.R')
 #### Mess below here
 #########################
 
+test <- fam_df %>% filter(log_id == 183826)
 
 ### Use if processing stops before all cases done
 fam_df <- get_unprocessed(
