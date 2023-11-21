@@ -106,7 +106,7 @@ CPT_grouper <- function(code) {
   return(group_label)
 }
 
-prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experience_window_weeks) {
+prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experience_window_weeks, drop_n_of_1,threshold) {
   ### Do any prep for data before calculating metrics here...
 
   # trims off cases that should not be processed (within window for calculating shared work experience)
@@ -126,6 +126,15 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   fam_df <- base::merge(fam_df, df_cases_trim[c('log_id','surgery_date','room_time','cpt')], by = 'log_id')
   fam_df$log_id <- as.integer(fam_df$log_id)
   fam_df <- fam_df[complete.cases(fam_df),]
+  if (drop_n_of_1) { # This drops cases that would not run anyway with too few teams to calculate
+    rt_df <- get_staff_time_in_room_metrics(
+      providers = df_cases,
+      cases = df_cases,
+      threshold = threshold)
+    fam_df <- fam_df %>%
+      left_join(rt_df, by = 'log_id') %>%
+      filter(tot_team_members_nona > 1)
+  }
   return(fam_df)
 }
 
@@ -229,7 +238,8 @@ get_team_members_db <- function(case_ID,thresh) {
   print(!is.na(thresh))
   if (!is.na(thresh)) {
     team_members <- team_members %>%
-    filter((time_duration_mins > thresh) | (staffrole == 'Primary')) # Need to document the staffrole condition
+      filter(staffrole == 'Primary' | !is.na(time_duration_mins)) %>% # drops rows with NA for time duration
+      filter((time_duration_mins > thresh) | (staffrole == 'Primary')) # Need to document the staffrole condition
     }
   # this should always be unique from the providers db; but just in case
   x <- length(unique(team_members$staff_id))
@@ -528,6 +538,39 @@ run_audit <- function(con, tname){
     group_by(facility) %>%
     summarise_all(funs(sum(!is.na(.))))
   return(df)
+}
+
+get_staff_time_in_room_metrics <- function(providers,cases,threshold){
+  
+  rt_df <- cases %>%
+    select(log_id,room_time)
+  
+  rm_tm_team_df <- providers %>%
+    left_join(rt_df, by = 'log_id') %>%
+    group_by(log_id) %>%
+    summarize(
+      tot_team_members = n(),
+      tot_tm_50_perc_rt = length(staff_id[time_duration_mins > (threshold*room_time) | staffrole == 'Primary']),
+      max_rm_time = max(time_duration_mins),
+      min_rm_time = min(time_duration_mins),
+      num_duration_na = length(staff_id[is.na(time_duration_mins)])
+      ) %>% ungroup()
+  
+  rm_tm_NONA <- providers %>%
+    left_join(rt_df, by = 'log_id') %>%
+    filter(staffrole == 'Primary' | !is.na(time_duration_mins)) %>%
+    group_by(log_id) %>%
+      summarize(
+        tot_team_members_nona = n(),
+        tot_tm_50_perc_rt_nona = length(staff_id[time_duration_mins > (.5*room_time) | staffrole == 'Primary']),
+        max_rm_time_nona = max(time_duration_mins),
+        min_rm_time_nona = min(time_duration_mins),
+        num_duration_na_nona = length(staff_id[is.na(time_duration_mins)])
+      ) %>% ungroup()
+    
+    rm_tm_team_df <- rm_tm_team_df %>%
+      full_join(rm_tm_NONA, by = 'log_id')
+  return(rm_tm_team_df)
 }
 
 #########################################################################

@@ -3,7 +3,7 @@
 ######  Main file for OR team composition analyses
 ################################################################
 ################################################################################
-
+rm(list = ls())
 library(here)
 library(config)
 
@@ -36,13 +36,13 @@ df_cases2 <- df_cases %>%
     surgery_date = as.Date(surgery_date)
   )
 
-df_proviers <- get_and_clean_providers(
+df_providers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
 )
 
-df_proviers_updated <- get_and_clean_providers(
+df_providers_updated <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file_update,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
@@ -50,7 +50,12 @@ df_proviers_updated <- get_and_clean_providers(
 beepr::beep()
 
 df_providers2 <- df_providers %>% 
-  bind_rows(df_proviers_updated)
+  bind_rows(df_providers_updated)
+
+test <- get_staff_time_in_room_metrics(
+  providers = df_providers2,
+  cases = df_cases2 %>% mutate(room_time = as.numeric((out_or_dttm - in_or_dttm), units = "mins"))
+)
 
 # loads data to the postgress DB
 push_cases_providers_to_db(
@@ -71,7 +76,9 @@ push_cases_providers_to_db(
 fam_df <- prep_data_for_fam_metrics(
   df_cases = df_cases2, #%>% filter(log_id %in% unique(big_zetas$log_id)),
   df_providers = df_providers2,
-  shared_work_experience_window_weeks = config$shared_work_experience_window_weeks)
+  shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
+  drop_n_of_1 = TRUE,
+  threshold = config$per_room_time_threshold)
 
 # Need to run this twice if using the cmbd_dyad_borg_par_db function (once with each dyad and borg table suffix)
 prep_DB_for_fam_metrics(
@@ -110,6 +117,8 @@ fam_df <- get_unprocessed(
   table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks
   )
+
+fam_df_2 <- get_staff_time_in_room_metrics(fam_df)
 
 fam_by_perf_df <- get_perf_fam_metrics(
   df_cases = df_cases,
