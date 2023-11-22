@@ -550,10 +550,10 @@ get_staff_time_in_room_metrics <- function(providers,cases,threshold){
     group_by(log_id) %>%
     summarize(
       tot_team_members = n(),
-      tot_tm_50_perc_rt = length(staff_id[time_duration_mins > (threshold*room_time) | staffrole == 'Primary']),
+      tot_tm_50_perc_rt = sum((time_duration_mins > (threshold*room_time)) | (staffrole == 'Primary'), na.rm = TRUE),
       max_rm_time = max(time_duration_mins),
       min_rm_time = min(time_duration_mins),
-      num_duration_na = length(staff_id[is.na(time_duration_mins)])
+      num_duration_na = sum(is.na(time_duration_mins),na.rm = TRUE)
       ) %>% ungroup()
   
   rm_tm_NONA <- providers %>%
@@ -562,10 +562,10 @@ get_staff_time_in_room_metrics <- function(providers,cases,threshold){
     group_by(log_id) %>%
       summarize(
         tot_team_members_nona = n(),
-        tot_tm_50_perc_rt_nona = length(staff_id[time_duration_mins > (.5*room_time) | staffrole == 'Primary']),
+        tot_tm_50_perc_rt_nona = sum((time_duration_mins > (threshold*room_time)) | (staffrole == 'Primary'), na.rm = TRUE),
         max_rm_time_nona = max(time_duration_mins),
         min_rm_time_nona = min(time_duration_mins),
-        num_duration_na_nona = length(staff_id[is.na(time_duration_mins)])
+        num_duration_na_nona = sum(is.na(time_duration_mins),na.rm = TRUE)
       ) %>% ungroup()
     
     rm_tm_team_df <- rm_tm_team_df %>%
