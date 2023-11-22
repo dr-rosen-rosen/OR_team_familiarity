@@ -15,7 +15,7 @@ clusterExport(cl=cl, varlist = c(
   'get_zeta','get_zeta_safely',
   'get_dyad_safely','get_dyad_based_fam',
   'per_room_time_threshold', 'shared_work_experience_window_weeks',
-  'STTS','table_suffix',
+  'STTS',#'table_suffix',
   'dyad_table_suffix', 'borg_table_suffix','config')
 )
 clusterEvalQ(cl, {

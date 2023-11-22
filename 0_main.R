@@ -52,10 +52,10 @@ beepr::beep()
 df_providers2 <- df_providers %>% 
   bind_rows(df_providers_updated)
 
-test <- get_staff_time_in_room_metrics(
-  providers = df_providers2,
-  cases = df_cases2 %>% mutate(room_time = as.numeric((out_or_dttm - in_or_dttm), units = "mins"))
-)
+# test <- get_staff_time_in_room_metrics(
+#   providers = df_providers2,
+#   cases = df_cases2 %>% mutate(room_time = as.numeric((out_or_dttm - in_or_dttm), units = "mins"))
+# )
 
 # loads data to the postgress DB
 push_cases_providers_to_db(
@@ -77,15 +77,17 @@ fam_df <- prep_data_for_fam_metrics(
   df_cases = df_cases2, #%>% filter(log_id %in% unique(big_zetas$log_id)),
   df_providers = df_providers2,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
-  drop_n_of_1 = TRUE,
+  drop_n_of_1 = TRUE, # This does take a while when TRUE
   threshold = config$per_room_time_threshold)
+beepr::beep()
 
-# Need to run this twice if using the cmbd_dyad_borg_par_db function (once with each dyad and borg table suffix)
+# Need to run this twice if using the cmbd_dyad_borg_par_db function 
+# (once with each dyad and borg table suffix)
 prep_DB_for_fam_metrics(
   df_cases = df_cases2,
   df_providers = df_providers2,
-  table_suffix = config$borg_table_suffix,
-  # table_suffix = config$borg_table_suffix,
+  #table_suffix = config$borg_table_suffix,
+  table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),
                        dbname   = config$db_name,

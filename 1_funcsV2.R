@@ -128,12 +128,12 @@ prep_data_for_fam_metrics <- function(df_cases, df_providers, shared_work_experi
   fam_df <- fam_df[complete.cases(fam_df),]
   if (drop_n_of_1) { # This drops cases that would not run anyway with too few teams to calculate
     rt_df <- get_staff_time_in_room_metrics(
-      providers = df_cases,
-      cases = df_cases,
+      providers = df_providers,
+      cases = df_cases %>% mutate(room_time = as.numeric((out_or_dttm - in_or_dttm), units = "mins")),
       threshold = threshold)
     fam_df <- fam_df %>%
       left_join(rt_df, by = 'log_id') %>%
-      filter(tot_team_members_nona > 1)
+      filter(tot_tm_50_perc_rt_nona > 1)
   }
   return(fam_df)
 }
