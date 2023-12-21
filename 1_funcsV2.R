@@ -153,10 +153,10 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix,
                                     shared_work_experience_window_weeks,con) {
   # Test if Table exists
   t_name <- paste0('team_comp_metrics',table_suffix)
-  if (!grepl('dyad',table_suffix)){ # sets up a borgatti version
+  if (grepl('borg',table_suffix)){ # sets up a borgatti version
     if (!DBI::dbExistsTable(con,t_name)) {
       # If no, create it
-      print('No BORGATTI table... do something!')
+      print('No BORGATTI table... adding it!')
       all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
       fam_metrics_df <- data.frame( # adds basic columsn for a week, a month and a year.
         log_id = all_cases,
@@ -187,10 +187,10 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix,
       wrt <- dbSendQuery(con,stmt)
       dbClearResult(wrt)
     }
-  } else { # sets up a dyad table
+  } else if (grepl('dyad',table_suffix)) { # sets up a dyad table
     if (!DBI::dbExistsTable(con,t_name)) {
       # If no, create it
-      print('No DYAD table... do something!')
+      print('No DYAD table... adding it!')
       all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
       fam_metrics_df <- data.frame( # adds basic columns
         log_id = all_cases,
@@ -212,7 +212,33 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix,
         dbClearResult(wrt)
       }
     }
-  } # End dyad table set up
+  # End dyad table set up
+  } else if (grepl('consist',table_suffix)) { # set up team consistency table
+    if (!DBI::dbExistsTable(con,t_name)) {
+      # If no, create it
+      print('No CONSISTENCY table... adding it!')
+      all_cases <- intersect(unique(df_cases$log_id),unique(df_providers$log_id))
+      fam_metrics_df <- data.frame( # adds basic columns
+        log_id = all_cases,
+        team_size = rep(NaN,length(all_cases)),
+        const_num_52 = rep(NaN,length(all_cases)),
+        const_denom_52 = rep(NaN,length(all_cases)),
+        consistency_52 = rep(NaN,length(all_cases))) %>%
+        base::merge(., df_cases[c('log_id','surgery_date')], by = 'log_id') %>%
+        mutate(log_id = as.integer(log_id))
+      DBI::dbWriteTable(con,paste0("team_comp_metrics",table_suffix),fam_metrics_df, overwrite = TRUE)
+    } else { print('Table exists... ')}
+    c_names <- colnames(tbl(con,t_name))
+    v_names <- paste0(c('const_num_','const_denom_','consistency_'),shared_work_experience_window_weeks)
+    for (v in v_names) {
+      if (!(v %in% c_names) ) { #Test if columns exists
+        stmt <- paste0("ALTER TABLE ",t_name," ADD COLUMN ",v," NUMERIC")
+        print(stmt)
+        wrt <- dbSendQuery(con,stmt)
+        dbClearResult(wrt)
+      }
+    }
+  } # End consistency table make
   NULL
 }
 
@@ -298,6 +324,7 @@ get_zeta <- function(past_perf_hx_mx, prime) {
   }
   return(z)
 }
+
 get_zeta_safely <- purrr::possibly(.f = get_zeta, otherwise = NULL)
 
 borgattizer_par_db <- function(df) {
@@ -442,6 +469,134 @@ dyad_izer_par_db <- function(df){
 
 #########################################################################
 ###############
+############## Functions run in team consistency measures using DB
+###################
+###########################################################################
+
+get_primary_db <- function(LOG_ID) {
+  t <- dplyr::tbl(con,'providers')
+  primary <- t %>%
+    filter(log_id == case_ID, staffrole == 'Primary') %>%
+    dplyr::collect() %>%
+    select(staff_id)
+  return( primary[1][[1]])
+}
+
+get_t_const_num <- function(log_id,team_members,r) {
+  t <- dplyr::tbl(con,'providers')
+  s_date <- as.Date(r$surgery_date)
+  print(s_date)
+  yr_window_lft <- s_date - lubridate::weeks(shared_work_experience_window_weeks)
+  print(yr_window_lft)
+  x <- t %>%
+    filter(staff_id %in% team_members) %>%
+    filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
+    select(staff_id,log_id) %>%
+    dplyr::collect() 
+  
+  # creates a df with staff id in one column and a list of all cases worked in the next
+  x2 <- x |>
+    group_by(staff_id) |>
+    summarize(
+      cases = list(unique(log_id))
+    )
+  # adds on columns for each staff id with their list of cases worked replicated 
+  # for n rows where n is number of staff int he case
+  x3 <- x2 |>
+    pivot_wider(names_from = staff_id, values_from = cases) |>
+    slice(rep(1:ncol(.),each = ncol(.)))
+  # adds the new columns back to the original and calculates intersection of cases for all staff
+  # resulting in square matrix with # of shared cases between each staff in each cell
+  x4 <- bind_cols(x2,x3) |>
+    rowwise() |>
+    mutate(across(3:ncol(.),~length(intersect(.x,cases)))) |>
+    select(-staff_id,-cases) |>
+    data.matrix(.)
+  diag(x4) <- NA # drops 'self' counts
+  return(sum(x4, na.rm = TRUE))
+}
+
+get_t_const_denom <- function(log_id, primary, r) {
+  t <- dplyr::tbl(con,'providers')
+  s_date <- as.Date(r$surgery_date)
+  print(s_date)
+  yr_window_lft <- s_date - lubridate::weeks(shared_work_experience_window_weeks)
+  print(yr_window_lft)
+  # pull all log_ids for primary surgeon in 
+  x0 <- t %>%
+    filter(staff_id == primary) %>%
+    filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
+    select(log_id) %>%
+    dplyr::collect()
+  cases <- unique(x$log_id)
+  # gets all team members working on any case with the surgeon
+  x <- t |>
+    filter(log_id %in% cases) %>%
+    select(staff_id,log_id) %>%
+    filter(staff_id != primary) %>%
+    dplyr::collect()
+  
+  # creates a df with staff id in one column and a list of all cases worked in the next
+  x2 <- x |>
+    group_by(staff_id) |>
+    summarize(
+      cases = list(unique(log_id))
+    )
+  # adds on columns for each staff id with their list of cases worked replicated 
+  # for n rows where n is number of staff int he case
+  x3 <- x2 |>
+    pivot_wider(names_from = staff_id, values_from = cases) |>
+    slice(rep(1:ncol(.),each = ncol(.)))
+  # adds the new columns back to the original and calcuates intersection of cases for all staff
+  # resulting in square matrix with # of shared cases between each staff in each cell
+  x4 <- bind_cols(x2,x3) |>
+    rowwise() |>
+    mutate(across(3:ncol(.),~length(intersect(.x,cases)))) |>
+    select(-staff_id,-cases) |>
+    data.matrix(.)
+  diag(x4) <- NA # drops 'self' counts
+  return(sum(x4, na.rm = TRUE))
+}
+
+get_team_consistency_db <- function(df) {
+  foreach::foreach(
+    r = iterators::iter(df, by = 'row'),
+    .combine = rbind, .noexport = 'con') %do% {
+      LOG_ID <- unique(r$log_id)
+      team_members <- get_team_members_db_sfly(
+        case_ID = LOG_ID,
+        thresh = per_room_time_threshold * r$room_time
+      )
+      print(team_members)
+      primary <- get_primary_db_sfly(LOG_ID)
+      print(primary)
+      t_size <- get_team_size(team_members)
+      print(t_size)
+      if (t_size >= 2) {
+        # get numerator
+        t_const_num <- get_t_const_num(log_id = LOG_ID,team_members = team_members,r = r)
+        # get denominator
+        t_const_denom <- get_t_const_denom(log_id = LOG_ID, primary = primary, r = r)
+        
+        # if nothing bad happened, save the dyad results to db
+        if (!is.na(t_const_num) && !is.na(t_const_denom) && !is.null(LOG_ID)) {
+          write_stmt <- paste(
+            paste0("UPDATE team_comp_metrics",dyad_table_suffix),
+            "SET team_size =",paste0(t_size,','),
+            paste0("const_denom_",shared_work_experience_window_weeks," = ",t_const_denom,','),
+            paste0("const_num_",shared_work_experience_window_weeks," = ",t_const_num,','),
+            paste0("consistency_",shared_work_experience_window_weeks," = ",(t_const_num/t_const_denom),',')
+          )
+          write_stmt <- paste(write_stmt, "WHERE LOG_ID =",paste0(LOG_ID,';'))
+          wrt <- dbSendQuery(con,write_stmt)
+          dbClearResult(wrt)
+      } # end of writing if statement
+      NULL
+    }
+}
+
+#########################################################################
+###############
 ############## Functions run in dyad and zeta measures at the same time using DB
 ###################
 
@@ -502,6 +657,47 @@ cmbd_dyad_borg_par_db <- function(df){
     NULL
   }
 }
+
+# TEST VERSION
+# get_all_metrics <- function(case_df, staff_df,window) {
+#   team_members <- unique(case_df$staff_id)
+#   past_perf_hx_mx <- staff_df %>%
+#     select(staff_id,log_id) %>%
+#     table() %>%
+#     as.data.frame.matrix()
+#   zeta_num <- ncol(past_perf_hx_mx) # the columns represent all cases in which a team member worked
+#   zeta_denom <- past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()
+#   z <- 1 - (zeta_num / zeta_denom)
+#   prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
+#   z_prime <- 1 - ((zeta_num - prime_offset) / (zeta_denom - prime_offset))
+#   return(
+#     data.frame('zeta' = z, 'zeta_prime' = z_prime) %>%
+#       dplyr::rename_with(.cols = everything(),~ paste0(.x,'_',window, recycle0 = TRUE))
+#     )
+#   }
+# 
+# # Need to filter to just cases desired, and trim providers df
+# p_df <- df_providers2 %>%
+#   filter(log_id %in% unique(fam_df$log_id))%>%
+#   mutate(
+#     yr_window_lft = surgery_date - lubridate::weeks(shared_work_experience_window_weeks)
+#   ) 
+#   
+# test_metrics <- p_df %>%
+#   group_by(log_id) %>%
+#   group_modify(~ get_all_metrics(
+#     case_df = .x, 
+#     #staff_df = df_providers2[which(df_providers2$staff_id == unique(.x$staff_id)),])
+#     staff_df = df_providers2 %>% 
+#       filter(
+#         staff_id %in% unique(.x$staff_id), 
+#         surgery_date > unique(.x$yr_window_lft),
+#         surgery_date < unique(.x$surgery_date)
+#         ),
+#     window = config$shared_work_experience_window_weeks
+#     )
+#     )
+# beepr::beep()
 
 #########################################################################
 ###############

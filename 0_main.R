@@ -78,7 +78,7 @@ fam_df <- prep_data_for_fam_metrics(
   df_providers = df_providers2,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   drop_n_of_1 = TRUE, # This does take a while when TRUE
-  threshold = config$per_room_time_threshold)
+  threshold = .5)#config$per_room_time_threshold)
 beepr::beep()
 
 # Need to run this twice if using the cmbd_dyad_borg_par_db function 
@@ -86,8 +86,8 @@ beepr::beep()
 prep_DB_for_fam_metrics(
   df_cases = df_cases2,
   df_providers = df_providers2,
-  #table_suffix = config$borg_table_suffix,
-  table_suffix = config$dyad_table_suffix,
+  table_suffix = config$borg_table_suffix,
+  #table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),
                        dbname   = config$db_name,
@@ -122,16 +122,25 @@ fam_df <- get_unprocessed(
 
 fam_df_2 <- get_staff_time_in_room_metrics(fam_df)
 
-fam_by_perf_df <- get_perf_fam_metrics(
-  df_cases = df_cases,
-  table_suffix = config$dyad_table_suffix,
-  con = DBI::dbConnect(RPostgres::Postgres(),
-                       dbname   = config$db_name,
-                       host     = 'localhost',
-                       port     = config$port,
-                       user     = config$db_user,
-                       password = config$db_pw)
-)
+fam_metrics <- pullAllTeamCompMetrics(con = DBI::dbConnect(RPostgres::Postgres(),
+                                            dbname   = config$db_name,
+                                            host     = 'localhost',
+                                            port     = config$port,
+                                            user     = config$db_user,
+                                            password = config$db_pw))
+
+fam_metrics %>% write.csv('familiarity_metrics_50Perc_rt_12-01-2023.csv')
+
+# fam_by_perf_df <- get_perf_fam_metrics(
+#   df_cases = df_cases,
+#   table_suffix = config$dyad_table_suffix,
+#   con = DBI::dbConnect(RPostgres::Postgres(),
+#                        dbname   = config$db_name,
+#                        host     = 'localhost',
+#                        port     = config$port,
+#                        user     = config$db_user,
+#                        password = config$db_pw)
+# )
 
 
 #################################
