@@ -86,7 +86,8 @@ beepr::beep()
 prep_DB_for_fam_metrics(
   df_cases = df_cases2,
   df_providers = df_providers2,
-  table_suffix = config$borg_table_suffix,
+  #table_suffix = config$borg_table_suffix,
+  table_suffix = config$const_table_suffix,
   #table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),
@@ -129,7 +130,7 @@ fam_metrics <- pullAllTeamCompMetrics(con = DBI::dbConnect(RPostgres::Postgres()
                                             user     = config$db_user,
                                             password = config$db_pw))
 
-fam_metrics %>% write.csv('familiarity_metrics_50Perc_rt_12-01-2023.csv')
+fam_metrics %>% write.csv('familiarity_metrics_12-27-2023.csv')
 
 # fam_by_perf_df <- get_perf_fam_metrics(
 #   df_cases = df_cases,

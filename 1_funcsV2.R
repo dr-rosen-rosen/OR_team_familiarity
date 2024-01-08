@@ -213,7 +213,7 @@ prep_DB_for_fam_metrics <- function(df_cases, df_providers, table_suffix,
       }
     }
   # End dyad table set up
-  } else if (grepl('consist',table_suffix)) { # set up team consistency table
+  } else if (grepl('const',table_suffix)) { # set up team consistency table
     if (!DBI::dbExistsTable(con,t_name)) {
       # If no, create it
       print('No CONSISTENCY table... adding it!')
@@ -572,14 +572,14 @@ get_team_consistency_db <- function(df) {
       print(primary)
       t_size <- get_team_size(team_members)
       print(t_size)
-      if (t_size >= 2) {
+      if ((t_size >= 2) && !is.null(primary)) {
         # get numerator
         t_const_num <- get_t_const_num(log_id = LOG_ID,team_members = team_members,r = r)
         # get denominator
         t_const_denom <- get_t_const_denom(log_id = LOG_ID, primary = primary, r = r)
         
         # if nothing bad happened, save the dyad results to db
-        if (!is.na(t_const_num) && !is.na(t_const_denom) && !is.null(LOG_ID)) {
+        if (!is.na(t_const_num) && !is.na(t_const_denom)) {
           write_stmt <- paste(
             paste0("UPDATE team_comp_metrics",dyad_table_suffix),
             "SET team_size =",paste0(t_size,','),
@@ -590,10 +590,11 @@ get_team_consistency_db <- function(df) {
           write_stmt <- paste(write_stmt, "WHERE LOG_ID =",paste0(LOG_ID,';'))
           wrt <- dbSendQuery(con,write_stmt)
           dbClearResult(wrt)
-      } # end of writing if statement
+          } # end of writing if statement
+        } # end of t_size block
       NULL
-    }
-}
+    } # end foreach loop
+  }
 
 #########################################################################
 ###############
@@ -807,17 +808,13 @@ pullAllTeamCompMetrics <- function(con) {
   # create empty df for storing data
   borgTables <- grep('borg',tableNames, fixed = TRUE, value = TRUE)
   dyadTables <- grep('dyad',tableNames,fixed = TRUE, value = TRUE)
+  #constTables <- grep('const',tableNames, fixed = TRUE, value = TRUE)
 
   for (tname in borgTables) {
     print(tname)
-    #pull all data
     t <- dplyr::tbl(con,tname)
     df <- t %>%
       dplyr::collect()
-#    cols <- names(df)
-#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
-#    print(cols)
-    # df <- df %>% drop_na(all_of(cols))
 
     df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
     df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
@@ -829,13 +826,9 @@ pullAllTeamCompMetrics <- function(con) {
   }
   for (tname in dyadTables) {
     print(tname)
-    #pull all data
     t <- dplyr::tbl(con,tname)
     df <- t %>%
       dplyr::collect()
-#    cols <- names(df)
-#    cols <- cols[!(cols %in% c('log_id','surgery_date'))]
-#    df <- df %>% drop_na(all_of(cols))
 
     df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
     df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
@@ -845,6 +838,20 @@ pullAllTeamCompMetrics <- function(con) {
       dyad_data <- dplyr::full_join(dyad_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
       }
   }
+  # for (tname in constTables) {
+  #   print(tname)
+  #   t <- dplyr::tbl(con,tname)
+  #   df <- t %>%
+  #     dplyr::collect()
+  #   
+  #   df$stts <- dplyr::if_else(grepl('stts',tname,fixed=TRUE),TRUE,FALSE) # set true or false for all cases or stts
+  #   df$coreTeam <- dplyr::if_else(grepl('fifty',tname,fixed=TRUE),TRUE,FALSE) # set true or false for >50% rt or any staff
+  #   if (!exists("cosnt_data")) {
+  #     dyad_data <- data.frame(df)}
+  #   else {
+  #     dyad_data <- dplyr::full_join(dyad_data,df)#, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
+  #   }
+  # }
   all_data <- dplyr::full_join(dyad_data,borg_data, by = c('log_id','team_size','surgery_date','stts','coreTeam'))
   return(all_data)
 }

@@ -38,4 +38,8 @@ getDoParWorkers()
 cmbd_dyad_borg_par_db( #cmbd_dyad_borg_par_db(#dyad_izer_par_db( #borgattizer_par_db(
   df = fam_df
 )
+
+get_team_consistency_db(
+  df = fam_df
+)
 parallel::stopCluster(cl)

@@ -14,7 +14,7 @@ default:
   # Analysis run settings
   STTS: FALSE # if TRUE, bases familiarity on times worked the SAME cpt code
   per_room_time_threshold: !expr NA #!expr NA # .5 indicates staff must be in OR for > 50% of case duration
-  shared_work_experience_window_weeks: 52 # number of prior weeks of cases to include in familiarity metric
+  shared_work_experience_window_weeks: 1 # number of prior weeks of cases to include in familiarity metric
   # adds to end of base DB table to store familiarity metrics
   # structure is _[measure type: borg/dyad]_[stts if Y, leave out if N]_[allstaff/fifty_perc_rt]
   borg_table_suffix: '_borg_allstaff'
