@@ -150,6 +150,7 @@ fam_metrics2 <- pullAllTeamCompMetrics2(con = DBI::dbConnect(RPostgres::Postgres
                                                            port     = config$port,
                                                            user     = config$db_user,
                                                            password = config$db_pw))
+fam_metrics2 |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_02-19-2024_V2.csv')
 
 # fam_by_perf_df <- get_perf_fam_metrics(
 #   df_cases = df_cases,
