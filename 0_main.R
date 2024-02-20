@@ -5,11 +5,11 @@
 ################################################################################
 rm(list = ls())
 library(here)
-library(config)
+# library(config)
 
 
 debuggingState(on = FALSE)
-Sys.setenv(R_CONFIG_ACTIVE = 'default')
+Sys.setenv(R_CONFIG_ACTIVE = 'calculon')
 config <- config::get()
 
 
@@ -24,33 +24,44 @@ df_cases <- get_and_clean_cases(
   data_dir = config$data_dir,
   cases_file = config$cases_file,
   cpt_file = config$cpt_file)
+beepr::beep()
+skimr::skim(df_cases)
 
 df_cases_updated <- get_and_clean_cases(
   data_dir = config$data_dir,
   cases_file = config$cases_file_update,
   cpt_file = NA)
+skimr::skim(df_cases_updated)
+beepr::beep()
 
 df_cases2 <- df_cases %>% 
   bind_rows(df_cases_updated) %>%
   mutate(
     surgery_date = as.Date(surgery_date)
   )
+skimr::skim(df_cases2)
+beepr::beep()
 
 df_providers <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
 )
+skimr::skim(df_providers)
+beepr::beep()
 
 df_providers_updated <- get_and_clean_providers(
   data_dir = config$data_dir,
   providers_file = config$providers_file_update,
   remove_dupes = TRUE # this addresses the issue of people being on a single case multiple times
 )
+skimr::skim(df_providers_updated)
 beepr::beep()
 
 df_providers2 <- df_providers %>% 
   bind_rows(df_providers_updated)
+skimr::skim(df_providers2)
+beepr::beep()
 
 # test <- get_staff_time_in_room_metrics(
 #   providers = df_providers2,
@@ -58,16 +69,16 @@ df_providers2 <- df_providers %>%
 # )
 
 # loads data to the postgress DB
-push_cases_providers_to_db(
-  con = DBI::dbConnect(RPostgres::Postgres(),
-                              dbname   = config$db_name,
-                              host     = 'localhost',
-                              port     = config$port,
-                              user     = config$db_user,
-                              password = config$db_pw),
-  df_cases = df_cases2,
-  df_providers = df_providers2
-)
+# push_cases_providers_to_db(
+#   con = DBI::dbConnect(RPostgres::Postgres(),
+#                               dbname   = config$db_name,
+#                               host     = 'localhost',
+#                               port     = config$port,
+#                               user     = config$db_user,
+#                               password = config$db_pw),
+#   df_cases = df_cases2,
+#   df_providers = df_providers2
+# )
 
 #########################
 #### Preparing data and db for a specific analysis
@@ -77,8 +88,8 @@ fam_df <- prep_data_for_fam_metrics(
   df_cases = df_cases2, #%>% filter(log_id %in% unique(big_zetas$log_id)),
   df_providers = df_providers2,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
-  drop_n_of_1 = TRUE, # This does take a while when TRUE
-  threshold = .5)#config$per_room_time_threshold)
+  drop_n_of_1 = FALSE, # This does take a while when TRUE
+  threshold = config$per_room_time_threshold)
 beepr::beep()
 
 # Need to run this twice if using the cmbd_dyad_borg_par_db function 
@@ -86,9 +97,9 @@ beepr::beep()
 prep_DB_for_fam_metrics(
   df_cases = df_cases2,
   df_providers = df_providers2,
-  #table_suffix = config$borg_table_suffix,
+  # table_suffix = config$borg_table_suffix,
   table_suffix = config$const_table_suffix,
-  #table_suffix = config$dyad_table_suffix,
+  # table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),
                        dbname   = config$db_name,
@@ -98,7 +109,7 @@ prep_DB_for_fam_metrics(
                        password = config$db_pw)
 )
 
-source('2_make_fam_metrics_db.R')
+# source('2_make_fam_metrics_db.R')
 
 
 
@@ -129,8 +140,8 @@ fam_metrics <- pullAllTeamCompMetrics(con = DBI::dbConnect(RPostgres::Postgres()
                                             port     = config$port,
                                             user     = config$db_user,
                                             password = config$db_pw))
-
-fam_metrics %>% write.csv('familiarity_metrics_12-27-2023.csv')
+skimr::skim(fam_metrics)
+fam_metrics |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_02-19-2024.csv')
 
 # fam_by_perf_df <- get_perf_fam_metrics(
 #   df_cases = df_cases,

@@ -1,3 +1,4 @@
+# rm(list = ls())
 library(parallel)
 library(foreach)
 library(iterators)
@@ -259,7 +260,7 @@ get_team_members_db <- function(case_ID,thresh) {
     dplyr::collect()
   x <- length(unique(team_members$staff_id))
   print(glue::glue("Team size from db: {x}"))
-  print(team_members)
+  # print(team_members)
   # If there is a cutoff, it will adjust here, otherwise use all team members
   print(!is.na(thresh))
   if (!is.na(thresh)) {
@@ -279,9 +280,9 @@ get_team_members_db_sfly <- purrr::possibly(.f = get_team_members_db, otherwise 
 get_perf_hx_db <- function(r, team_members, con) {
   t <- dplyr::tbl(con,'providers')
   s_date <- as.Date(r$surgery_date)
-  print(s_date)
+  # print(s_date)
   yr_window_lft <- s_date - lubridate::weeks(shared_work_experience_window_weeks)
-  print(yr_window_lft)
+  # print(yr_window_lft)
   x <- t %>%
     filter(staff_id %in% team_members) %>%
     filter(surgery_date > yr_window_lft, surgery_date < s_date) %>%
@@ -289,7 +290,7 @@ get_perf_hx_db <- function(r, team_members, con) {
     dplyr::collect() %>%
     table() %>%
     as.data.frame.matrix()
-  print(nrow(x))
+  # print(nrow(x))
   if (STTS == TRUE){ # Trims the dataset to only include cases with the same cpt code
 
     # filter to only those with the same cpt code as current procedure
@@ -373,7 +374,7 @@ get_dyad_based_fam <- function(past_perf_hx_mx){
     dyad_case_count <- past_perf_hx_mx[dyad,] %>%
     select_if(colSums(.) == 2) %>%
     ncol(.)
-    print(dyad_case_count)
+    # print(dyad_case_count)
     return(dyad_case_count)
   }
   t_size <- nrow(past_perf_hx_mx)
@@ -382,10 +383,10 @@ get_dyad_based_fam <- function(past_perf_hx_mx){
   print(dyad_shared_work_exp)
   avg_dyad_exp <- mean(dyad_shared_work_exp) # used in Luciano, Parker & others
   avg_team_fam <- sum(dyad_shared_work_exp) / ((t_size*(t_size-1)) / 2) # version from Avgerinos
-  print(min(dyad_shared_work_exp))
-  print(avg_dyad_exp)
+  # print(min(dyad_shared_work_exp))
+  # print(avg_dyad_exp)
   bottleneck_score <- min(dyad_shared_work_exp) / avg_dyad_exp
-  print(bottleneck_score)
+  # print(bottleneck_score)
   team_fam_disp <- sd(dyad_shared_work_exp)
   return(
     list(
@@ -473,15 +474,18 @@ dyad_izer_par_db <- function(df){
 ###################
 ###########################################################################
 
-get_primary_db <- function(LOG_ID) {
+get_primary_db <- function(case_ID) {
+  # print('at PRIMARY')
   t <- dplyr::tbl(con,'providers')
-  primary <- t %>%
-    filter(log_id == case_ID, staffrole == 'Primary') %>%
-    dplyr::collect() %>%
+  primary <- t |>
+    filter(log_id == case_ID, staffrole == 'Primary') |>
+    dplyr::collect() |>
     select(staff_id)
-  return( primary[1][[1]])
+  # print(primary)
+  # print(primary[1][[1]])
+  return(primary[1][[1]])
 }
-
+get_primary_db_sfly <- purrr::possibly(.f = get_primary_db, otherwise = NULL)
 get_t_const_num <- function(log_id,team_members,r) {
   t <- dplyr::tbl(con,'providers')
   s_date <- as.Date(r$surgery_date)
@@ -499,7 +503,7 @@ get_t_const_num <- function(log_id,team_members,r) {
     group_by(staff_id) |>
     summarize(
       cases = list(unique(log_id))
-    )
+    ) |> ungroup()
   # adds on columns for each staff id with their list of cases worked replicated 
   # for n rows where n is number of staff int he case
   x3 <- x2 |>
@@ -515,7 +519,7 @@ get_t_const_num <- function(log_id,team_members,r) {
   diag(x4) <- NA # drops 'self' counts
   return(sum(x4, na.rm = TRUE))
 }
-
+get_t_const_num_sfly <- purrr::possibly(.f = get_t_const_num, otherwise = NULL)
 get_t_const_denom <- function(log_id, primary, r) {
   t <- dplyr::tbl(con,'providers')
   s_date <- as.Date(r$surgery_date)
@@ -541,7 +545,7 @@ get_t_const_denom <- function(log_id, primary, r) {
     group_by(staff_id) |>
     summarize(
       cases = list(unique(log_id))
-    )
+    ) |> ungroup()
   # adds on columns for each staff id with their list of cases worked replicated 
   # for n rows where n is number of staff int he case
   x3 <- x2 |>
@@ -557,41 +561,45 @@ get_t_const_denom <- function(log_id, primary, r) {
   diag(x4) <- NA # drops 'self' counts
   return(sum(x4, na.rm = TRUE))
 }
+get_t_const_denom_sfly <- purrr::possibly(.f = get_t_const_denom, otherwise = NULL)
 
 get_team_consistency_db <- function(df) {
   foreach::foreach(
     r = iterators::iter(df, by = 'row'),
-    .combine = rbind, .noexport = 'con') %do% {
+    .combine = rbind, .noexport = 'con') %dopar% {
       LOG_ID <- unique(r$log_id)
+      print(glue::glue('Log ID: {LOG_ID}'))
       team_members <- get_team_members_db_sfly(
         case_ID = LOG_ID,
         thresh = per_room_time_threshold * r$room_time
       )
-      print(team_members)
-      primary <- get_primary_db_sfly(LOG_ID)
-      print(primary)
+      # print(glue::glue('Team members: {team_members}'))
+      primary <- get_primary_db_sfly(case_ID = LOG_ID)
+      primary <- get_primary_db(LOG_ID)
+      # print(glue::glue('Primary: {primary}'))
       t_size <- get_team_size(team_members)
-      print(t_size)
+      # print(glue::glue('team size: {t_size}'))
       if ((t_size >= 2) && !is.null(primary)) {
         # get numerator
-        t_const_num <- get_t_const_num(log_id = LOG_ID,team_members = team_members,r = r)
+        t_const_num <- get_t_const_num_sfly(log_id = LOG_ID,team_members = team_members,r = r)
         # get denominator
-        t_const_denom <- get_t_const_denom(log_id = LOG_ID, primary = primary, r = r)
+        t_const_denom <- get_t_const_denom_sfly(log_id = LOG_ID, primary = primary, r = r)
         
         # if nothing bad happened, save the dyad results to db
         if (!is.na(t_const_num) && !is.na(t_const_denom)) {
           write_stmt <- paste(
-            paste0("UPDATE team_comp_metrics",dyad_table_suffix),
+            paste0("UPDATE team_comp_metrics",const_table_suffix),
             "SET team_size =",paste0(t_size,','),
             paste0("const_denom_",shared_work_experience_window_weeks," = ",t_const_denom,','),
             paste0("const_num_",shared_work_experience_window_weeks," = ",t_const_num,','),
             paste0("consistency_",shared_work_experience_window_weeks," = ",(t_const_num/t_const_denom),',')
           )
           write_stmt <- paste(write_stmt, "WHERE LOG_ID =",paste0(LOG_ID,';'))
+          print(write_stmt)
           wrt <- dbSendQuery(con,write_stmt)
           dbClearResult(wrt)
-          } # end of writing if statement
-        } # end of t_size block
+          } else {print(glue::glue('Failed: num is {t_const_num} and demon is {t_const_denom}'))} # end of writing if statement
+        } else {print(glue::glue('Failed: team size is {t_size} and primary is {primary}'))} # end of t_size block 
       NULL
     } # end foreach loop
   }
@@ -611,10 +619,10 @@ cmbd_dyad_borg_par_db <- function(df){
       case_ID = LOG_ID,
       thresh = per_room_time_threshold * r$room_time
       )
-    print(team_members)
+    # print(team_members)
     # set team size
     t_size <- get_team_size(team_members)
-    print(t_size)
+    # print(t_size)
     if (t_size >= 2) {
       # pull past performance data adn calculate metrics
       past_perf_hx_mx <- get_perf_hx_db_sfly(r = r, team_members = team_members, con = con)
@@ -658,47 +666,6 @@ cmbd_dyad_borg_par_db <- function(df){
     NULL
   }
 }
-
-# TEST VERSION
-# get_all_metrics <- function(case_df, staff_df,window) {
-#   team_members <- unique(case_df$staff_id)
-#   past_perf_hx_mx <- staff_df %>%
-#     select(staff_id,log_id) %>%
-#     table() %>%
-#     as.data.frame.matrix()
-#   zeta_num <- ncol(past_perf_hx_mx) # the columns represent all cases in which a team member worked
-#   zeta_denom <- past_perf_hx_mx %>% summarize_if(is.numeric, sum, na.rm=TRUE) %>% sum()
-#   z <- 1 - (zeta_num / zeta_denom)
-#   prime_offset <- past_perf_hx_mx %>% rowSums() %>% max()
-#   z_prime <- 1 - ((zeta_num - prime_offset) / (zeta_denom - prime_offset))
-#   return(
-#     data.frame('zeta' = z, 'zeta_prime' = z_prime) %>%
-#       dplyr::rename_with(.cols = everything(),~ paste0(.x,'_',window, recycle0 = TRUE))
-#     )
-#   }
-# 
-# # Need to filter to just cases desired, and trim providers df
-# p_df <- df_providers2 %>%
-#   filter(log_id %in% unique(fam_df$log_id))%>%
-#   mutate(
-#     yr_window_lft = surgery_date - lubridate::weeks(shared_work_experience_window_weeks)
-#   ) 
-#   
-# test_metrics <- p_df %>%
-#   group_by(log_id) %>%
-#   group_modify(~ get_all_metrics(
-#     case_df = .x, 
-#     #staff_df = df_providers2[which(df_providers2$staff_id == unique(.x$staff_id)),])
-#     staff_df = df_providers2 %>% 
-#       filter(
-#         staff_id %in% unique(.x$staff_id), 
-#         surgery_date > unique(.x$yr_window_lft),
-#         surgery_date < unique(.x$surgery_date)
-#         ),
-#     window = config$shared_work_experience_window_weeks
-#     )
-#     )
-# beepr::beep()
 
 #########################################################################
 ###############
