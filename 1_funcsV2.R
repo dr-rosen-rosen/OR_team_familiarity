@@ -823,6 +823,36 @@ pullAllTeamCompMetrics <- function(con) {
   return(all_data)
 }
 
+pullAllTeamCompMetrics2 <- function(con) {
+  
+  t <- dplyr::tbl(con, 'team_comp_metrics_borg_allstaff')
+  borg_df <- t |> collect() |> as.data.frame()
+  borg_df$stts <- FALSE
+  borg_df$coreTeam <- FALSE
+  
+  t <- dplyr::tbl(con, 'team_comp_metrics_borg_fifty_perc_rt')
+  borg_df2 <- t |> collect() |> as.data.frame()
+  borg_df2$stts <- FALSE
+  borg_df2$coreTeam <- TRUE
+  
+  borg_df <- bind_rows(borg_df,borg_df2)
+
+  t <- dplyr::tbl(con, 'team_comp_metrics_dyad_allstaff')
+  dyad_df <- t |> collect() |> as.data.frame() |> select(-team_size,-surgery_date)
+  dyad_df$stts <- FALSE
+  dyad_df$coreTeam <- FALSE
+  
+  t <- dplyr::tbl(con, 'team_comp_metrics_dyad_fifty_perc_rt')
+  dyad_df2 <- t |> collect() |> as.data.frame() |> select(-team_size,-surgery_date)
+  dyad_df2$stts <- FALSE
+  dyad_df2$coreTeam <- TRUE
+  
+  dyad_df <- bind_rows(dyad_df,dyad_df2)
+
+  all_data <- dplyr::full_join(borg_df,dyad_df, by = c('log_id','stts','coreTeam'))
+  return(all_data)
+}
+
 #########################################################################
 ###############
 ############## Functions for charts

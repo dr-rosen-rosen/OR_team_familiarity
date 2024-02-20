@@ -143,6 +143,14 @@ fam_metrics <- pullAllTeamCompMetrics(con = DBI::dbConnect(RPostgres::Postgres()
 skimr::skim(fam_metrics)
 fam_metrics |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_02-19-2024.csv')
 
+
+fam_metrics2 <- pullAllTeamCompMetrics2(con = DBI::dbConnect(RPostgres::Postgres(),
+                                                           dbname   = config$db_name,
+                                                           host     = 'localhost',
+                                                           port     = config$port,
+                                                           user     = config$db_user,
+                                                           password = config$db_pw))
+
 # fam_by_perf_df <- get_perf_fam_metrics(
 #   df_cases = df_cases,
 #   table_suffix = config$dyad_table_suffix,
@@ -178,7 +186,7 @@ tcon <- DBI::dbConnect(RPostgres::Postgres(),
 all_cases <- tcon %>% tbl('team_comp_metrics_v2_all_staff') %>% collect()
 all_cases %>% write_csv(.,'all_cases_all_staff.csv')
 all_cases <- tcon %>% tbl('cases') %>% collect()
-all_cases %>% write_csv(.,'cases.csv')
+all_cases %>% write_csv(.,'cases_02-19-2024.csv')
 
 big_zetas <- tcon %>% tbl('team_comp_metrics_v2_fifty_perc_rt') %>%
   filter(zeta_prime_1 > 1) %>% collect()
