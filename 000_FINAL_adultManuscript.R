@@ -16,47 +16,54 @@ library(tidyverse)
 library(here)
 library(gtsummary)
 
-df_cases <- readr::read_csv('/Users/mrosen44/OneDrive - Johns Hopkins University/OR_Team_Data/cases.csv')
-df_fam <- readr::read_csv('/Users/mrosen44/OneDrive - Johns Hopkins University/OR_Team_Data/combinedTeamCompMetrics.csv') %>%
+df_cases <- readr::read_csv('/Users/mrosen44/OneDrive - Johns Hopkins University/OR_Team_Data/cases_02-19-2024.csv')
+skimr::skim(df_cases)
+df_fam <- readr::read_csv('/Users/mrosen44/OneDrive - Johns Hopkins University/OR_Team_Data/familiarity_metrics_02-19-2024_V2.csv') %>%
   filter(!if_all(c(avg_dyad_exp_52,bottleneck_score_52,team_fam_disp_52, avg_dyad_exp_12,
                   bottleneck_score_12, team_fam_disp_12,avg_dyad_exp_4, bottleneck_score_4, team_fam_disp_4,
-                  zeta_52,zeta_prime_52,zeta_4,zeta_prime_4,zeta_1,zeta_prime_1,zeta_12,zeta_prime_12), is.na))
+                  zeta_52,zeta_prime_52,zeta_4,zeta_prime_4,zeta_12,zeta_prime_12), is.na))
+skimr::skim(df_fam)
 source(here('predictorLists.R'), echo = TRUE)
 # get team sizes wide to be joined with later metric set by log_id
-team_size_wide <- df_fam %>%
-  select(log_id,team_size,coreTeam) %>%
-  mutate(
-    coreTeam_rc = if_else(coreTeam == TRUE,'core_team','all_team')
-  ) %>%
-  select(-coreTeam) %>%
-  unique() %>% # removing duplicated rows
-  dplyr::group_by(log_id, coreTeam_rc) %>% # for some reasons there are two cases with multiple entries, this is just gets rid of those two cases
-  dplyr::mutate(n = dplyr::n()) %>% #, .groups = "drop") %>%
-  ungroup() %>%
-  dplyr::filter(n == 1L) %>%
-  select(-n) %>%
-  pivot_wider(
-    id_cols = log_id,
-    names_from = coreTeam_rc,
-    values_from = team_size,
-    names_glue = "{.value}.{coreTeam_rc}"
-  ) 
+# team_size_wide <- df_fam %>%
+#   select(log_id,team_size,coreTeam) %>%
+#   mutate(
+#     coreTeam_rc = if_else(coreTeam == TRUE,'core_team','all_team')
+#   ) %>%
+#   select(-coreTeam) %>%
+#   unique() %>% # removing duplicated rows
+#   dplyr::group_by(log_id, coreTeam_rc) %>% # for some reasons there are two cases with multiple entries, this is just gets rid of those two cases
+#   dplyr::mutate(n = dplyr::n()) %>% #, .groups = "drop") %>%
+#   ungroup() %>%
+#   dplyr::filter(n == 1L) %>%
+#   select(-n) %>%
+#   pivot_wider(
+#     id_cols = log_id,
+#     names_from = coreTeam_rc,
+#     values_from = team_size,
+#     names_glue = "{.value}.{coreTeam_rc}"
+#   ) 
 
 
 df_fam <- df_fam %>%
     mutate(
-        stts_rc = if_else(stts == TRUE,'case_spec','all_cases'),
+        # stts_rc = if_else(stts == TRUE,'case_spec','all_cases'),
         coreTeam_rc = if_else(coreTeam == TRUE,'core_team','all_team')
     ) %>%
-  select(-stts,-coreTeam,-team_size) %>%
+  # select(-stts,-coreTeam,-team_size) %>%
+  select(-stts,-coreTeam) %>%
   pivot_wider(
-      names_from = c(stts_rc,coreTeam_rc),
-      values_from = c(avg_dyad_exp_52,bottleneck_score_52,team_fam_disp_52, avg_dyad_exp_12,
-                      bottleneck_score_12, team_fam_disp_12,avg_dyad_exp_4, bottleneck_score_4, team_fam_disp_4,
-                      zeta_52,zeta_prime_52,zeta_4,zeta_prime_4,zeta_1,zeta_prime_1,zeta_12,zeta_prime_12),
-      names_glue = "{.value}.{stts_rc}.{coreTeam_rc}"
+      id_cols = log_id,
+      names_from = c(coreTeam_rc),
+      values_from = c(#avg_dyad_exp_52,bottleneck_score_52,team_fam_disp_52, avg_dyad_exp_12,
+                      #bottleneck_score_12, team_fam_disp_12,avg_dyad_exp_4, bottleneck_score_4, team_fam_disp_4,
+                      zeta_52,zeta_prime_52,zeta_4,zeta_prime_4,zeta_12,zeta_prime_12, 
+                      team_size),
+      # names_glue = "{.value}.{stts_rc}.{coreTeam_rc}"
+      names_glue = "{.value}.all_cases.{coreTeam_rc}"
   ) %>%
-  left_join(team_size_wide, by = "log_id")
+  rename(team_size.all_team = team_size.all_cases.all_team,team_size.core_team = team_size.all_cases.core_team)
+  #left_join(team_size_wide, by = "log_id")
 
 df_cmb <- df_cases %>%
   right_join(df_fam)
@@ -81,15 +88,18 @@ fam_by_perf_df <- df_cmb %>%
   ######## Everybody filters
   mutate(room_time = as.numeric((out_or_dttm - in_or_dttm), units = "mins")) %>%
   mutate(los = as.numeric((disdate - surgery_date), units = 'days')) %>%
-  filter(surgery_date < lubridate::ymd('2020-01-01')) %>%
+  # filter(surgery_date < lubridate::ymd('2020-01-01')) %>%
   mutate(cpt = factor(cpt)) %>%
   mutate(cpt_grouping = factor(cpt_grouping)) %>%
   mutate(multiple_procedures = ifelse(number_of_procedures > 1, 1, 0)) %>%
   mutate(multiple_procedures = factor(multiple_procedures)) %>%
   filter(asa_rating_c %in% asa_levels) %>%
   mutate(asa_rating_c = factor(asa_rating_c))  %>%
-  filter(facility != "HOWARD COUNTY GENERAL HOSPITAL") #%>% # there were very few cases
-  #filter(facility == "THE JOHNS HOPKINS HOSPITAL")
+  # filter(facility != "HOWARD COUNTY GENERAL HOSPITAL") #%>% # there were very few cases
+  filter(!facility %in% c("HOWARD COUNTY GENERAL HOSPITAL","JOHNS HOPKINS HOWARD COUNTY MEDICAL CENTER",
+                       "Greenspring Ambulatory Surgery Center","Greenspring PIII Ambulatory Surgery Center",
+                       "Howard County Ambulatory Surgery Center","JHM CLINICAL","Knoll Ambulatory Surgery Center",
+                       "Suburban Ambulatory Surgery Center","White Marsh Ambulatory Surgery Center"))
 
 # drop cases with uncommon procedure types
 fam_by_perf_df <- fam_by_perf_df %>%
