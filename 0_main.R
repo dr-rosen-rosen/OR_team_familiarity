@@ -12,7 +12,6 @@ debuggingState(on = FALSE)
 Sys.setenv(R_CONFIG_ACTIVE = 'calculon')
 config <- config::get()
 
-
 source(here('1_funcsV2.R'), echo = TRUE)
 
 
@@ -80,6 +79,7 @@ beepr::beep()
 #   df_providers = df_providers2
 # )
 
+
 #########################
 #### Preparing data and db for a specific analysis
 #########################
@@ -98,8 +98,8 @@ prep_DB_for_fam_metrics(
   df_cases = df_cases2,
   df_providers = df_providers2,
   # table_suffix = config$borg_table_suffix,
-  table_suffix = config$const_table_suffix,
-  # table_suffix = config$dyad_table_suffix,
+  # table_suffix = config$const_table_suffix,
+  table_suffix = config$dyad_table_suffix,
   shared_work_experience_window_weeks = config$shared_work_experience_window_weeks,
   con = DBI::dbConnect(RPostgres::Postgres(),
                        dbname   = config$db_name,
@@ -141,7 +141,7 @@ fam_metrics <- pullAllTeamCompMetrics(con = DBI::dbConnect(RPostgres::Postgres()
                                             user     = config$db_user,
                                             password = config$db_pw))
 skimr::skim(fam_metrics)
-fam_metrics |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_02-19-2024.csv')
+fam_metrics |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_03-05-2024.csv')
 
 
 fam_metrics2 <- pullAllTeamCompMetrics2(con = DBI::dbConnect(RPostgres::Postgres(),
@@ -150,7 +150,7 @@ fam_metrics2 <- pullAllTeamCompMetrics2(con = DBI::dbConnect(RPostgres::Postgres
                                                            port     = config$port,
                                                            user     = config$db_user,
                                                            password = config$db_pw))
-fam_metrics2 |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_02-19-2024_V2.csv')
+fam_metrics2 |> select(-ends_with('_1')) |> write.csv('familiarity_metrics_03-05-2024_V2.csv')
 
 # fam_by_perf_df <- get_perf_fam_metrics(
 #   df_cases = df_cases,

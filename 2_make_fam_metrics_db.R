@@ -40,12 +40,12 @@ clusterEvalQ(cl, {
 registerDoParallel(cl)
 getDoParWorkers()
 
-# cmbd_dyad_borg_par_db(
-#   df = fam_df
-# )
-#  
-get_team_consistency_db(
+cmbd_dyad_borg_par_db(
   df = fam_df
 )
+
+# get_team_consistency_db(
+#   df = fam_df
+# )
 
 parallel::stopCluster(cl)

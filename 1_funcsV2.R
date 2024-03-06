@@ -37,7 +37,8 @@ get_and_clean_cases <- function(data_dir, cases_file, cpt_file){
     mutate(across(c("AdmDate","DisDate"), ~ openxlsx::convertToDate(.,origin = "1900-01-01"))) %>%
     mutate(LOG_ID = as.integer(LOG_ID)) %>%
     rename_with(tolower) %>%
-    mutate(surgery_date = as.Date(surgery_date))
+    mutate(surgery_date = as.Date(surgery_date)) |>
+    mutate(across(is.POSIXct, ~ force_tz(.x, 'America/New_York')))
   if (!is.na(cpt_file)) {
     # reads in and cleans, and categorizes CPT codes if CPT file provided
     df_cpt <- readxl::read_excel(here::here(data_dir,cpt_file)) %>%
@@ -82,7 +83,7 @@ get_and_clean_providers <- function(data_dir, providers_file, remove_dupes) {
     df_providers <- df_providers %>%
       group_by(log_id, staff_id, surgery_date) %>%
       summarize(
-        time_duration_mins = sum(time_duration_mins),
+        time_duration_mins = sum(time_duration_mins, na.rm = TRUE),
         staffrole = first(na.omit(staffrole))) %>%
       ungroup()
   }
@@ -260,7 +261,7 @@ get_team_members_db <- function(case_ID,thresh) {
     dplyr::collect()
   x <- length(unique(team_members$staff_id))
   print(glue::glue("Team size from db: {x}"))
-  # print(team_members)
+  print(team_members)
   # If there is a cutoff, it will adjust here, otherwise use all team members
   print(!is.na(thresh))
   if (!is.na(thresh)) {
@@ -364,6 +365,7 @@ borgattizer_par_db <- function(df) {
     NULL
   }
 }
+
 #########################################################################
 ###############
 ############## Functions run in dyad based measures using DB
@@ -830,7 +832,7 @@ pullAllTeamCompMetrics2 <- function(con) {
   borg_df$stts <- FALSE
   borg_df$coreTeam <- FALSE
   
-  t <- dplyr::tbl(con, 'team_comp_metrics_borg_fifty_perc_rt')
+  t <- dplyr::tbl(con, 'team_comp_metrics_borg_fifty_per_rt')
   borg_df2 <- t |> collect() |> as.data.frame()
   borg_df2$stts <- FALSE
   borg_df2$coreTeam <- TRUE
@@ -842,7 +844,7 @@ pullAllTeamCompMetrics2 <- function(con) {
   dyad_df$stts <- FALSE
   dyad_df$coreTeam <- FALSE
   
-  t <- dplyr::tbl(con, 'team_comp_metrics_dyad_fifty_perc_rt')
+  t <- dplyr::tbl(con, 'team_comp_metrics_dyad_fifty_per_rt')
   dyad_df2 <- t |> collect() |> as.data.frame() |> select(-team_size,-surgery_date)
   dyad_df2$stts <- FALSE
   dyad_df2$coreTeam <- TRUE

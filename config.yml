@@ -13,15 +13,14 @@ default:
   
   # Analysis run settings
   STTS: FALSE # if TRUE, bases familiarity on times worked the SAME cpt code
-  per_room_time_threshold: !expr NA # .5 indicates staff must be in OR for > 50% of case duration
-  shared_work_experience_window_weeks: 4 # number of prior weeks of cases to include in familiarity metric
+  per_room_time_threshold: .5 #!expr NA # .5 indicates staff must be in OR for > 50% of case duration
+  shared_work_experience_window_weeks: 52 # number of prior weeks of cases to include in familiarity metric
   # adds to end of base DB table to store familiarity metrics
   # structure is _[measure type: borg/dyad]_[stts if Y, leave out if N]_[allstaff/fifty_perc_rt]
-  borg_table_suffix: '_borg_allstaff' #_borg_fiffty_per_rt
-  dyad_table_suffix: '_dyad_allstaff' # _dyad_fifty_per_rt
+  borg_table_suffix: '_borg_fifty_per_rt' #_borg_allstaff' #_borg_fiffty_per_rt
+  dyad_table_suffix:  '_dyad_fifty_per_rt' #'_dyad_allstaff' # _dyad_fifty_per_rt
   const_table_suffix: '_const_allstaff' #'_const_fifty_perc_rt' # '_const_fifty_allstaff'
 
 calculon:
   data_dir: '/Volumes/calculon/OR_fam'
   db_pw: 'supahUsah'
-
