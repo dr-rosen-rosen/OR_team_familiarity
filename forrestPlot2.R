@@ -1,8 +1,9 @@
 library(grid)
 library(forestploter)
+library(tidyverse)
 
 ###### ONE columns NO groups
-fp_dt <- readxl::read_excel(here('OR_fam_est_CIs_forestplotter.xlsx'), sheet = 'Sheet4')
+fp_dt <- readxl::read_excel(here::here('OR_fam_est_CIs_forestplotter_v2.xlsx'), sheet = 'Sheet4')
 fp_dt$` ` <- paste(rep(" ", 5), collapse = " ")
 fp_dt$`   ` <- paste(rep(" ", 20), collapse = " ")
 fp_dt$`  ` <- paste(rep(" ", 5), collapse = " ")
@@ -15,7 +16,7 @@ fp_dt$`Team and Timeframe` <- if_else(stringr::str_detect(fp_dt$`Team and Timefr
 
 fp_dt <- fp_dt %>%
   mutate(
-    `Estimate [CI]` = if_else(
+    `Estimate [95% CI]` = if_else(
       is.na(est),
       "",
       paste0(est," [",ll," to ",ul,"]"))
@@ -28,12 +29,16 @@ p <- forest(fp_dt[,c(1,5,6,7,8)],
             upper = fp_dt$ul,
             ci_column = 3,
             ref_line = 1,
+            xlim = c(.9,1.4),
+            ticks_at = c(.9,1,1.1,1.2,1.3,1.4),
+            arrow_lab = c("Favours team familiarity","Does not favour team familiarity"),
             # vert_line = c(0.5, 2),
             nudge_y = 0.2#,
             # theme = tm
             )
 # Add underline at the bottom of the header
-p <- add_underline(p, part = "header")
+# p <- forestploter::add_underline(p, part = "header")
+p <- forestploter::add_border(p, part = "header")
 p <- edit_plot(p,
                row = c(1, 10),
                gp = gpar(fontface = "bold"))
